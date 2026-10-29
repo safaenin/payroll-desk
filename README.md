@@ -120,3 +120,94 @@ New uploads automatically create/reuse `employees/{name-employeeCode}/` in Googl
 In Employees → Add employee, keep the generated internal SE code when no official code exists. Enable Manual payroll for staff absent from imported reports; this explicitly includes their non-FR roles. Add a dated wage using Fixed monthly — regardless of attendance, enter 10000 for ₹10,000, and choose the first day of the starting month. Save the wage and employee. Active fixed-pay employees appear in payroll without attendance; attendance bonus is disabled, while bonuses, deductions and advance recovery still apply. Fixed-pay changes must start on a month boundary; no automatic partial-month proration is performed.
 
 For manual attendance-based wages, choose Daily wage or Monthly base ÷ days instead. Under Attendance → Manual attendance, select the employee and enter every day of the selected month (P full, HD half, A/WO/L unpaid). Half-days count toward pay but not the 26-day bonus threshold. Missing days block approval for manual attendance employees. Review month coverage and approve payroll as usual after month end. Manual edits to approved months are blocked; imported reports cannot overwrite employees explicitly configured for manual payroll.
+
+## Business expenses
+
+The **Expenses** module keeps business purchasing separate from payroll. Open
+**Brands & businesses** to add Basickwear, other brands, and the
+legal business named on your invoices. Multiple registrations are supported;
+an expense belongs to one registration and can be split across brands by exact
+amount or percentage. Totals include GST, with the GST amount entered separately.
+Money is stored in paise, and brand rounding preserves the overall total.
+
+Create a purchase first or select its invoice when creating it. Details are entered
+manually. PDF, JPEG, PNG and WebP invoices up to 5 MB are stored privately in the
+connected Google Drive account, in **Business invoices / Brand name**.
+Shared expenses use **Business invoices / Shared / Brand A + Brand B** and upload
+one copy of the invoice. Folder identity uses stable brand IDs, so a brand rename
+reuses its folder on the next upload. Existing files are not automatically moved
+when an expense's brand allocations change; new uploads use the current brands. Upload additional invoices
+later using **Edit / attach invoice**. Missing invoices and cash purchases with no
+invoice expected have different statuses. An upload completed before a failed
+Firestore save remains available in the open editor for retry; do not close the
+editor before retrying. Invoice files are not deleted by employee cleanup.
+
+GSTR-2B confirmation records **Appeared in GSTR-2B**, plus the period; it does not
+assert that credit was included in a filed return. Confirmation requires an attached
+invoice, GST amount and registered GSTIN. Equipment can optionally reference an
+employee. Expense payment entries record completed payments, with their actual date,
+method and reference, and prevent overpayment. They do not initiate bank transfers.
+
+The dashboard filters purchases by purchase date and cash paid by payment date
+(including payments for older purchases). Outstanding and GST cards refer to purchases
+in the selected purchase date range. Shared amounts follow the selected brand's share.
+Use each expense's details to see the full purchase, allocations and payment dates.
+
+Choose **Make recurring** on a purchase to create a monthly or yearly template.
+Generated expenses are unpaid, await review and have no carried-over invoice or
+GSTR-2B confirmation. Edit **future expenses** to change the next price, allocations,
+frequency or date without altering past purchases. Pause skips generation; **Resume
+today** restarts today, skipping paused dates. Cancel stops future generation and
+preserves existing records. Month-end schedules restore their original day after
+short months. Due expenses are generated on workspace sign-in/reload and with
+**Check schedule**; this local app does not run a background scheduler while closed.
+Up to 150 occurrences are processed per check to stay within transaction limits;
+check again for larger backlogs. New schedules can be checked immediately.
+
+### Enable storage and admin access
+
+Publish this repository's updated **firestore.rules** before using Expenses with
+Firestore. The new collections are `businessBrands`, `businessRegistrations`,
+`businessExpenses` and `businessRecurrences`, under the existing owner workspace.
+Existing payroll records do not need migration. Business collections participate in
+the existing revision transaction, so concurrent changes require reloading.
+
+By default, only the existing owner has access. To authorize an administrator, add
+their Firebase UID to both the allowed UID list in `firestore.rules` and the
+comma-separated `VITE_ADMIN_UIDS` setting, publish the rules, then restart the app.
+`VITE_OWNER_UID` stays set to the original owner for all users. Admins share the
+company workspace, including payroll; employees are not authorized. The server rules,
+not the browser configuration alone, enforce access. Google Drive document access
+still follows Drive permissions: share relevant folders with an authorized admin
+when they need to open another user's uploads. Each uploader connects their own
+Drive account. No live cloud rules are published by a local build.
+
+## Code formatting
+
+Prettier keeps TypeScript, React components, CSS, HTML, JSON and Markdown consistent
+across the project. Run `npm run format` to format files, or `npm run format:check`
+to verify formatting without changing anything. The shared configuration uses two
+spaces, single quotes in JavaScript/TypeScript, semicolons and a 100-character
+preferred line width.
+
+VS Code recommends the Prettier extension and formats on save when it is installed.
+EditorConfig supplies matching indentation and line endings for other editors.
+Generated output, dependency lockfiles and environment files are excluded. Firebase
+Security Rules are formatted manually because Prettier has no built-in rules parser.
+
+### Brands and legal businesses
+
+In Expenses, open **Brands & businesses**. Brand cards show the shared legal
+business name and GSTIN. **Add brand** lets you select an existing legal business
+or create one in the same dialog. Several brands can use the same legal business;
+there is no need to create a duplicate GSTIN record. Edit business details in the
+**Legal businesses** tab; the updated details appear on every linked brand.
+Existing brands inherit the sole registration until assigned explicitly. Adding a
+second legal business preserves those existing assignments. New expenses use the
+selected brand's business; shared expenses using the same business fill it in too.
+If selected brands have different businesses, choose the invoice's registration.
+Previously saved expenses retain their original registration selection.
+
+The expense dashboard defaults to **All dates**, so historical purchases remain visible.
+Use **This month** or a custom date range for a narrower view. A notice shows how
+many purchases fall outside the chosen dates, with **Show all dates** to reveal them.

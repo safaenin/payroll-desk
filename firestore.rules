@@ -1,28 +1,74 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Only the configured payroll owner can access company records.
-    function owner(uid) { return request.auth != null && request.auth.uid == uid && uid == 'oazDtOGd96ecNL255rXvm3IYkaK2'; }
+    // Owner and explicitly authorized admins share this workspace.
+    // Add admin Firebase UIDs to this list AND VITE_ADMIN_UIDS in the app.
+    function owner(uid) {
+      return request.auth != null
+        && uid == 'oazDtOGd96ecNL255rXvm3IYkaK2'
+        && request.auth.uid in ['oazDtOGd96ecNL255rXvm3IYkaK2'];
+    }
     function deletingEmployee(uid) {
-      return get(/databases/$(database)/documents/owners/$(uid)/meta/revision).data.keys().hasAll(['employeeDeletion']);
+      return get(/databases/$(database)/documents/owners/$(uid)/meta/revision)
+        .data.keys().hasAll(['employeeDeletion']);
     }
     match /owners/{uid}/{group}/{id} {
       allow read: if owner(uid);
-      allow create: if owner(uid) && group in ['employees','attendance','adjustments','runs','payments','files','imports','settings','meta','advances','fileDeletions'];
-      allow update: if owner(uid) && group in ['employees','attendance','adjustments','settings','meta'];
+      allow create: if owner(uid)
+        && group in [
+          'employees',
+          'attendance',
+          'adjustments',
+          'runs',
+          'payments',
+          'files',
+          'imports',
+          'settings',
+          'meta',
+          'advances',
+          'fileDeletions',
+          'businessBrands',
+          'businessRegistrations',
+          'businessExpenses',
+          'businessRecurrences'
+        ];
+      allow update: if owner(uid)
+        && group in [
+          'employees',
+          'attendance',
+          'adjustments',
+          'settings',
+          'meta',
+          'businessBrands',
+          'businessRegistrations',
+          'businessExpenses',
+          'businessRecurrences'
+        ];
       allow update: if owner(uid) && group == 'advances'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['schedule']);
       allow delete: if false;
       // Cascade cleanup is allowed only during an owner-started deletion job.
       allow delete: if owner(uid) && deletingEmployee(uid)
-        && group in ['employees','attendance','adjustments','payments','advances','files','fileDeletions'];
+        && group in [
+          'employees',
+          'attendance',
+          'adjustments',
+          'payments',
+          'advances',
+          'files',
+          'fileDeletions'
+        ];
       allow update: if owner(uid) && deletingEmployee(uid)
-        && ((group == 'runs' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lines']))
-          || (group == 'imports' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revisions'])));
+        && (
+          (group == 'runs'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lines']))
+          || (group == 'imports'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revisions']))
+        );
       allow update: if owner(uid) && group == 'fileDeletions'
         && resource.data.status == 'pending'
         && request.resource.data.status == 'trashed'
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','completedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt']);
     }
   }
 }

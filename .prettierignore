@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+package-lock.json
+*.tsbuildinfo
+.env*
+# Prettier has no built-in parser for Firebase Security Rules.
+firestore.rules
