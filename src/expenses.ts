@@ -10,7 +10,42 @@ export type ExpensePayment = {
   reference: string;
 };
 export type Invoice = { id: string; name: string; url: string; uploadedAt: string };
+export type ExpenseItem = {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  gst: number;
+};
+export function invoiceItemTotals(items: ExpenseItem[]) {
+  if (!items.length || new Set(items.map((item) => item.id)).size !== items.length)
+    throw new Error('Add at least one invoice item with a unique ID.');
+  let subtotal = 0,
+    gst = 0;
+  for (const item of items) {
+    const units = Math.round(item.quantity * 1000);
+    if (
+      !item.description.trim() ||
+      !Number.isSafeInteger(units) ||
+      units <= 0 ||
+      Math.abs(item.quantity * 1000 - units) > 0.000001 ||
+      !Number.isSafeInteger(item.unitPrice) ||
+      item.unitPrice < 0 ||
+      !Number.isSafeInteger(item.gst) ||
+      item.gst < 0 ||
+      !Number.isSafeInteger(item.unitPrice * units)
+    )
+      throw new Error(
+        'Each item needs a description, positive quantity (up to 3 decimals), and valid nonnegative unit price and GST.',
+      );
+    subtotal += Math.round((item.unitPrice * units) / 1000);
+    gst += item.gst;
+    if (!Number.isSafeInteger(subtotal + gst)) throw new Error('Invoice total is too large.');
+  }
+  return { subtotal, gst, amount: subtotal + gst };
+}
 export type Expense = {
+  items?: ExpenseItem[];
   id: string;
   description: string;
   supplier: string;
@@ -84,6 +119,11 @@ export function minor(value: string) {
 }
 export const paid = (e: Expense) => e.payments.reduce((sum, p) => sum + p.amount, 0);
 export function validateExpense(e: Expense, b: Business) {
+  if (e.items) {
+    const totals = invoiceItemTotals(e.items);
+    if (totals.amount !== e.amount || totals.gst !== e.gst)
+      throw new Error('Invoice items must match the total and GST amount.');
+  }
   if (!e.description.trim() || !e.supplier.trim() || !validDate(e.date))
     throw new Error('Description, supplier and a valid purchase date are required.');
   if (

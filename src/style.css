@@ -1777,3 +1777,185 @@ code {
   font-size: 12px;
   color: #697f70;
 }
+
+.dialog-error {
+  overflow-wrap: anywhere;
+}
+
+.expense-save-progress {
+  padding: 26px 16px 24px;
+  text-align: center;
+}
+.expense-save-symbol {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  margin: 0 auto 22px;
+  border-radius: 24px;
+  background: #eaf4ee;
+  color: #28634b;
+}
+.expense-save-progress h3 {
+  font-size: 22px;
+  margin: 0 0 12px;
+}
+.expense-save-progress > p {
+  max-width: 410px;
+  margin: 0 auto 20px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.expense-save-file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin: 0 auto 20px;
+  max-width: 410px;
+  border: 1px solid #e2eae4;
+  border-radius: 9px;
+  background: #f8faf7;
+  font-size: 12px;
+}
+.expense-save-file span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.expense-save-file svg {
+  flex-shrink: 0;
+}
+.expense-save-progress ol {
+  list-style: none;
+  text-align: left;
+  padding: 0;
+  max-width: 410px;
+  margin: 0 auto 24px;
+}
+.expense-save-progress li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid #edf1eb;
+}
+.expense-save-progress li small {
+  margin-left: auto;
+}
+.expense-save-progress .complete {
+  color: #367251;
+}
+.expense-save-progress .current {
+  color: #254e3c;
+  font-weight: 600;
+}
+.expense-save-progress .pending {
+  color: #9ba69f;
+}
+.expense-save-spinner {
+  animation: expense-save-spin 1s linear infinite;
+}
+@keyframes expense-save-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .expense-save-spinner {
+    animation: none;
+  }
+}
+
+.invoice-items {
+  margin: 20px 0;
+  padding: 18px;
+  border: 1px solid #dee8df;
+  border-radius: 12px;
+  background: #fafcf9;
+}
+.invoice-items h3 {
+  margin: 0 0 8px;
+}
+.invoice-items-heading p {
+  font-size: 12px;
+}
+.invoice-item {
+  margin: 16px 0;
+  padding: 16px;
+  background: white;
+  border: 1px solid #e3eae3;
+  border-radius: 9px;
+}
+.invoice-item-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  font-size: 12px;
+}
+.invoice-item-values {
+  display: grid;
+  grid-template-columns: 0.7fr 1.2fr 1fr;
+  gap: 12px;
+}
+.invoice-line-total {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  gap: 10px;
+}
+.invoice-totals {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  margin: 20px 0 0;
+  font-size: 13px;
+}
+.invoice-totals dd {
+  margin: 0;
+  text-align: right;
+}
+.invoice-detail-item {
+  padding: 12px 0;
+  border-bottom: 1px solid #e5ebe4;
+  font-size: 13px;
+}
+@media (max-width: 650px) {
+  .invoice-item-values {
+    grid-template-columns: 1fr;
+  }
+  .invoice-items {
+    padding: 12px;
+  }
+  .invoice-item {
+    padding: 12px;
+  }
+}
+
+.drive-connect-prompt {
+  padding: 22px 12px;
+  text-align: center;
+}
+.drive-connect-prompt h3 {
+  font-size: 20px;
+  margin-bottom: 14px;
+}
+.drive-connect-prompt > p {
+  max-width: 450px;
+  margin: 0 auto 20px;
+}
+.drive-connect-prompt > p[role='status'] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.drive-ready-notice {
+  padding: 14px;
+  background: #eef7ef;
+  border-radius: 8px;
+  color: #316347;
+  margin-bottom: 18px;
+}

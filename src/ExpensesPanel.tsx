@@ -1,10 +1,18 @@
+import InvoiceItemsEditor, {
+  blankInvoiceItem,
+  draftItemTotals,
+  parseInvoiceItems,
+  type InvoiceItemDraft,
+} from './InvoiceItemsEditor';
 import BrandManagement from './BrandManagement';
-import { useRef, useState, type ReactNode } from 'react';
+import { Check, LoaderCircle, CloudUpload, FileCheck2 } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { State } from './domain';
 import { money } from './domain';
 import {
   brandRegistration,
   registrationForBrands,
+  invoiceItemTotals,
   allocated,
   allocatedOutstanding,
   advanceDate,
@@ -75,6 +83,7 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
     [schedule, setSchedule] = useState<Recurrence | null>(null),
     [paying, setPaying] = useState<Expense | null>(null),
     [view, setView] = useState<Expense | null>(null);
+  const paymentTask = useDialogTask(task);
   const result = expenseSummary(b, brand, from, to);
   const brandExpenses = b.expenses.filter(
     (e) => !brand || e.allocations.some((a) => a.brandId === brand),
@@ -319,7 +328,10 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
                             <button
                               className="text-button"
                               disabled={busy || paid(e) >= e.amount}
-                              onClick={() => setPaying(e)}
+                              onClick={() => {
+                                paymentTask.clear();
+                                setPaying(e);
+                              }}
                             >
                               Record payment
                             </button>
@@ -365,7 +377,7 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
           <section className="panel history">
             <div className="section-heading">
               <div>
-                <h2>Recurring expenses</h2>
+                <h2>Recurring expenses & subscriptions</h2>
                 <p>
                   Due records are created when you open the workspace or check the schedule. Review
                   the amount before paying.
@@ -384,6 +396,24 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
                 }
               >
                 Check schedule
+              </button>
+              <button
+                className="primary"
+                disabled={busy || !b.brands.length || !b.registrations.length}
+                onClick={() => {
+                  const template = { ...newExpense(b, brand || undefined), category: 'Software' };
+                  setSchedule({
+                    id: crypto.randomUUID(),
+                    template,
+                    frequency: 'monthly',
+                    nextDate: businessToday(),
+                    anchorDay: Number(businessToday().slice(8)),
+                    status: 'active',
+                  });
+                  setEditing(template);
+                }}
+              >
+                Add subscription
               </button>
             </div>
             {b.recurrences.map((r) => (
@@ -464,7 +494,8 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
             ))}
             {!b.recurrences.length && (
               <p className="empty-inline">
-                Choose “Make recurring” on an expense to create a schedule.
+                Use “Add subscription” to create a schedule, or “Make recurring” on an existing
+                expense.
               </p>
             )}
           </section>
@@ -482,6 +513,8 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
           state={state}
           busy={busy}
           task={task}
+          connected={connected}
+          connect={connect}
           close={() => {
             if (!busy) {
               setEditing(null);
@@ -494,6 +527,7 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
       {paying && (
         <Dialog
           title="Record completed payment"
+          error={paymentTask.error}
           close={() => {
             if (!busy) setPaying(null);
           }}
@@ -505,7 +539,7 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
             onSubmit={(e) => {
               e.preventDefault();
               const f = new FormData(e.currentTarget);
-              void task(async () => {
+              void paymentTask.run(async () => {
                 const updated = recordExpensePayment(paying, {
                   id: crypto.randomUUID(),
                   date: String(f.get('date')),
@@ -578,6 +612,21 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
           <p>
             {gstLabels[view.gstStatus]} {view.gstPeriod}
           </p>
+          {view.items && (
+            <section className="invoice-detail-items">
+              <h3>Invoice items</h3>
+              {view.items.map((item) => (
+                <div key={item.id} className="invoice-detail-item">
+                  <strong>{item.description}</strong>
+                  <small>
+                    {item.quantity} × {money(item.unitPrice)} before GST · GST {money(item.gst)}
+                  </small>
+                  <span>{money(invoiceItemTotals([item]).amount)}</span>
+                </div>
+              ))}
+            </section>
+          )}
+
           {view.allocations.map((a) => (
             <p key={a.brandId}>
               {b.brands.find((r) => r.id === a.brandId)?.name}: {money(a.amount)}
@@ -611,11 +660,44 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
     </div>
   );
 }
+/** Catch failures inside the global busy-state wrapper so they stay in the active dialog. */
+function useDialogTask(task: Props['task']) {
+  const [error, setError] = useState('');
+  return {
+    error,
+    clear: () => setError(''),
+    run: (fn: () => Promise<unknown>) =>
+      task(async () => {
+        setError('');
+        try {
+          await fn();
+        } catch (error) {
+          setError(error instanceof Error ? error.message : String(error));
+        }
+      }),
+  };
+}
+function DialogError({ message }: { message: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.scrollIntoView({ block: 'nearest' });
+  }, [message]);
+  return (
+    <div ref={ref} className="message error dialog-error" role="alert" tabIndex={-1}>
+      {message}
+    </div>
+  );
+}
 function Dialog({
   title,
   children,
   close,
+  error = '',
+  busy = false,
 }: {
+  error?: string;
+  busy?: boolean;
   title: string;
   children: ReactNode;
   close: () => void;
@@ -630,17 +712,87 @@ function Dialog({
       }}
       onCancel={(e) => {
         e.preventDefault();
-        close();
+        if (!busy) close();
       }}
     >
       <div className="modal-heading">
         <h2>{title}</h2>
-        <button type="button" className="icon-button" aria-label="Close dialog" onClick={close}>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Close dialog"
+          disabled={busy}
+          onClick={close}
+        >
           ×
         </button>
       </div>
+      {error && <DialogError message={error} />}
       {children}
     </dialog>
+  );
+}
+type ExpenseSaveStage = 'checking' | 'uploading' | 'saving';
+function ExpenseSaveProgress({
+  stage,
+  invoice,
+  schedule,
+}: {
+  stage: ExpenseSaveStage;
+  invoice: string;
+  schedule: boolean;
+}) {
+  const steps = [
+    { key: 'checking', label: 'Check expense details' },
+    { key: 'uploading', label: 'Upload invoice to Google Drive' },
+    { key: 'saving', label: schedule ? 'Save recurring schedule' : 'Save expense details' },
+  ].filter((step) => step.key !== 'uploading' || Boolean(invoice));
+  const active = steps.findIndex((step) => step.key === stage);
+  return (
+    <section className="expense-save-progress" role="status" aria-live="polite" aria-atomic="true">
+      <div className="expense-save-symbol">
+        <LoaderCircle className="expense-save-spinner" size={34} />
+      </div>
+      <h3>
+        {stage === 'uploading'
+          ? 'Uploading your invoice'
+          : stage === 'saving'
+            ? schedule
+              ? 'Saving your schedule'
+              : 'Saving your expense'
+            : 'Preparing to save'}
+      </h3>
+      <p>
+        {stage === 'uploading'
+          ? 'Your invoice is being securely uploaded to your connected Google Drive. Larger files or a slow connection can take a little longer.'
+          : 'Please keep this window open while we finish saving your details.'}
+      </p>
+      {invoice && (
+        <div className="expense-save-file">
+          <CloudUpload size={18} />
+          <span>{invoice}</span>
+        </div>
+      )}
+      <ol>
+        {steps.map((step, index) => (
+          <li
+            key={step.key}
+            className={index < active ? 'complete' : index === active ? 'current' : 'pending'}
+          >
+            {index < active ? (
+              <Check size={17} />
+            ) : index === active ? (
+              <LoaderCircle className="expense-save-spinner" size={17} />
+            ) : (
+              <FileCheck2 size={17} />
+            )}
+            <span>{step.label}</span>
+            {index < active && <small>Done</small>}
+          </li>
+        ))}
+      </ol>
+      <small>You can continue as soon as saving is complete.</small>
+    </section>
   );
 }
 function ExpenseEditor({
@@ -650,6 +802,8 @@ function ExpenseEditor({
   state,
   busy,
   task,
+  connected,
+  connect,
   close,
   persist,
 }: {
@@ -659,9 +813,23 @@ function ExpenseEditor({
   state: State;
   busy: boolean;
   task: Props['task'];
+  connected: boolean;
+  connect: Props['connect'];
   close: () => void;
   persist: (b: Business, message: string) => Promise<void>;
 }) {
+  const [itemDrafts, setItemDrafts] = useState<InvoiceItemDraft[] | null>(() =>
+    expense.items
+      ? expense.items.map((item) => ({
+          ...item,
+          quantity: String(item.quantity),
+          unitPrice: String(item.unitPrice / 100),
+          gst: String(item.gst / 100),
+        }))
+      : !expense.description && expense.amount === 0
+        ? [blankInvoiceItem()]
+        : null,
+  );
   const [amount, setAmount] = useState(String(expense.amount / 100)),
     [splitMode, setSplitMode] = useState<'amount' | 'percentage'>('amount'),
     [splits, setSplits] = useState(
@@ -671,7 +839,33 @@ function ExpenseEditor({
     [file, setFile] = useState<File | null>(null),
     [invoiceStatus, setInvoiceStatus] = useState<Expense['invoiceStatus']>(expense.invoiceStatus),
     [gstStatus, setGSTStatus] = useState<Expense['gstStatus']>(expense.gstStatus);
+  const dialogTask = useDialogTask(task);
+  const [saveStage, setSaveStage] = useState<ExpenseSaveStage | null>(null);
+  const saveLock = useRef(false);
+  const [needsDrive, setNeedsDrive] = useState(false);
+  const [connectingDrive, setConnectingDrive] = useState(false);
+  const [driveNotice, setDriveNotice] = useState(false);
+  const driveAccess = useRef(false);
+  useEffect(() => {
+    if (
+      dialogTask.error &&
+      /connect google drive|access expired|connect again/i.test(dialogTask.error)
+    ) {
+      driveAccess.current = false;
+      setNeedsDrive(true);
+    }
+  }, [dialogTask.error]);
+  const [uploadName, setUploadName] = useState('');
   const [registrationId, setRegistrationId] = useState(expense.registrationId);
+  function changeItems(next: InvoiceItemDraft[]) {
+    setItemDrafts(next);
+    const totals = draftItemTotals(next);
+    if (totals) {
+      setAmount(String(totals.amount / 100));
+      if (splits.length === 1 && splitMode === 'amount')
+        setSplits([{ ...splits[0], value: String(totals.amount / 100) }]);
+    }
+  }
   function changeBrands(next: typeof splits) {
     setSplits(next);
     setRegistrationId(
@@ -691,107 +885,213 @@ function ExpenseEditor({
             : 'Add expense / upload invoice'
       }
       close={close}
+      error={dialogTask.error}
+      busy={busy || Boolean(saveStage) || connectingDrive}
     >
+      {saveStage && (
+        <ExpenseSaveProgress stage={saveStage} invoice={uploadName} schedule={Boolean(schedule)} />
+      )}
+      {needsDrive && (
+        <section className="drive-connect-prompt" role="region" aria-label="Connect Google Drive">
+          <div className="expense-save-symbol">
+            <CloudUpload size={32} />
+          </div>
+          <h3>
+            {connectingDrive
+              ? 'Connecting to Google Drive…'
+              : 'Connect Google Drive to upload this invoice'}
+          </h3>
+          <p>
+            Your expense details, invoice items and selected file are kept in this form. Connect
+            your account, then continue saving.
+          </p>
+          {file && (
+            <div className="expense-save-file">
+              <FileCheck2 size={18} />
+              <span>{file.name}</span>
+            </div>
+          )}
+          {connectingDrive && (
+            <p role="status">
+              <LoaderCircle className="expense-save-spinner" size={18} /> Complete the Google
+              sign-in window to continue.
+            </p>
+          )}
+          <div className="setup-dialog-actions">
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || connectingDrive}
+              onClick={() => {
+                dialogTask.clear();
+                setNeedsDrive(false);
+              }}
+            >
+              Back to expense
+            </button>
+            <button
+              type="button"
+              className="primary"
+              disabled={busy || connectingDrive}
+              onClick={() =>
+                void dialogTask.run(async () => {
+                  setConnectingDrive(true);
+                  try {
+                    await connect();
+                    driveAccess.current = true;
+                    setDriveNotice(true);
+                    setNeedsDrive(false);
+                  } finally {
+                    setConnectingDrive(false);
+                  }
+                })
+              }
+            >
+              {connectingDrive ? (
+                <>
+                  <LoaderCircle className="expense-save-spinner" size={16} />
+                  Connecting…
+                </>
+              ) : (
+                'Connect Google Drive'
+              )}
+            </button>
+          </div>
+        </section>
+      )}
+      {driveNotice && !needsDrive && !saveStage && (
+        <p className="drive-ready-notice" role="status">
+          Google Drive connected. Your details and selected file are ready—press Save to finish.
+        </p>
+      )}
       <form
+        hidden={Boolean(saveStage) || needsDrive}
+        aria-busy={Boolean(saveStage)}
         onSubmit={(ev) => {
           ev.preventDefault();
+          if (saveLock.current || busy) return;
+          if (file && !schedule && !connected && !driveAccess.current) {
+            dialogTask.clear();
+            setNeedsDrive(true);
+            return;
+          }
+          setDriveNotice(false);
           const f = new FormData(ev.currentTarget);
-          void task(async () => {
-            const total = minor(amount);
-            let remaining = total;
-            let allocations: Allocation[];
-            if (splitMode === 'percentage') {
-              const weights = splits.map((a) => minor(a.value));
-              if (weights.reduce((n, w) => n + w, 0) !== 10000)
-                throw new Error('Percentages must add up to 100%.');
-              allocations = splits.map((a, i) => {
-                const value =
-                  i === splits.length - 1 ? remaining : Math.round((total * weights[i]) / 10000);
-                remaining -= value;
-                return { brandId: a.brandId, amount: value };
-              });
-            } else
-              allocations = splits.map((a) => ({ brandId: a.brandId, amount: minor(a.value) }));
-            let next: Expense = {
-              ...expense,
-              description: String(f.get('description')).trim(),
-              supplier: String(f.get('supplier')).trim(),
-              date: String(f.get('date')),
-              category: String(f.get('category')),
-              registrationId: String(f.get('registration')),
-              amount: total,
-              gst: minor(String(f.get('gst'))),
-              allocations,
-              invoiceNumber: String(f.get('invoiceNumber')).trim(),
-              invoiceStatus: invoices.length || file ? 'attached' : invoiceStatus,
-              invoices,
-              gstStatus,
-              gstPeriod: gstStatus === 'appeared' ? String(f.get('gstPeriod')) : '',
-              employeeCode: String(f.get('employee')),
-              notes: String(f.get('notes')).trim(),
-              review: false,
-            };
-            if (schedule)
-              next = {
-                ...next,
-                payments: [],
-                invoices: [],
-                invoiceStatus: expense.invoiceStatus === 'none' ? 'none' : 'awaiting',
-                gstStatus: next.gst ? 'pending' : 'not-applicable',
-                gstPeriod: '',
-                invoiceNumber: '',
+          saveLock.current = true;
+          setUploadName(!schedule && file ? file.name : '');
+          setSaveStage('checking');
+          void dialogTask
+            .run(async () => {
+              const items = itemDrafts ? parseInvoiceItems(itemDrafts) : undefined;
+              const itemTotals = items ? invoiceItemTotals(items) : null;
+              const total = itemTotals?.amount ?? minor(amount);
+              let remaining = total;
+              let allocations: Allocation[];
+              if (splitMode === 'percentage') {
+                const weights = splits.map((a) => minor(a.value));
+                if (weights.reduce((n, w) => n + w, 0) !== 10000)
+                  throw new Error('Percentages must add up to 100%.');
+                allocations = splits.map((a, i) => {
+                  const value =
+                    i === splits.length - 1 ? remaining : Math.round((total * weights[i]) / 10000);
+                  remaining -= value;
+                  return { brandId: a.brandId, amount: value };
+                });
+              } else
+                allocations = splits.map((a) => ({ brandId: a.brandId, amount: minor(a.value) }));
+              let next: Expense = {
+                ...expense,
+                ...(items ? { items } : {}),
+                description: String(f.get('description')).trim(),
+                supplier: String(f.get('supplier')).trim(),
+                date: String(f.get('date')),
+                category: String(f.get('category')),
+                registrationId: String(f.get('registration')),
+                amount: total,
+                gst: itemTotals?.gst ?? minor(String(f.get('gst'))),
+                allocations,
+                invoiceNumber: String(f.get('invoiceNumber')).trim(),
+                invoiceStatus: invoices.length || file ? 'attached' : invoiceStatus,
+                invoices,
+                gstStatus,
+                gstPeriod: gstStatus === 'appeared' ? String(f.get('gstPeriod')) : '',
+                employeeCode: String(f.get('employee')),
+                notes: String(f.get('notes')).trim(),
+                review: false,
               };
-            // Check the full record before uploading. A placeholder is used solely for validation.
-            validateExpense(
-              {
-                ...next,
-                invoices: file
-                  ? [...invoices, { id: 'pending', name: file.name, url: '', uploadedAt: '' }]
-                  : invoices,
-              },
-              b,
-            );
-            if (schedule) {
-              const nextDate = String(f.get('nextDate'));
-              if (!validDate(nextDate)) throw new Error('Select the next occurrence date.');
-              const r: Recurrence = {
-                ...schedule,
-                template: {
+              if (schedule)
+                next = {
                   ...next,
                   payments: [],
                   invoices: [],
-                  invoiceStatus: next.invoiceStatus === 'none' ? 'none' : 'awaiting',
+                  invoiceStatus: expense.invoiceStatus === 'none' ? 'none' : 'awaiting',
                   gstStatus: next.gst ? 'pending' : 'not-applicable',
                   gstPeriod: '',
-                },
-                frequency: String(f.get('frequency')) as Recurrence['frequency'],
-                nextDate,
-                anchorDay: Number(nextDate.slice(8)),
-              };
-              await persist(
-                { ...b, recurrences: [...b.recurrences.filter((x) => x.id !== r.id), r] },
-                'Recurring schedule saved. Existing purchases are unchanged.',
+                  invoiceNumber: '',
+                };
+              // Check the full record before uploading. A placeholder is used solely for validation.
+              validateExpense(
+                schedule
+                  ? next
+                  : {
+                      ...next,
+                      invoices: file
+                        ? [...invoices, { id: 'pending', name: file.name, url: '', uploadedAt: '' }]
+                        : invoices,
+                    },
+                b,
               );
-            } else {
-              if (file) {
-                const uploaded = await uploadExpenseInvoice(
-                  file,
-                  next.id,
-                  next.allocations.map((a) => b.brands.find((brand) => brand.id === a.brandId)!),
+              if (schedule) {
+                const nextDate = String(f.get('nextDate'));
+                if (!validDate(nextDate)) throw new Error('Select the next occurrence date.');
+                const r: Recurrence = {
+                  ...schedule,
+                  template: {
+                    ...next,
+                    payments: [],
+                    invoices: [],
+                    invoiceStatus: next.invoiceStatus === 'none' ? 'none' : 'awaiting',
+                    gstStatus: next.gst ? 'pending' : 'not-applicable',
+                    gstPeriod: '',
+                  },
+                  frequency: String(f.get('frequency')) as Recurrence['frequency'],
+                  nextDate,
+                  anchorDay: Number(nextDate.slice(8)),
+                };
+                setSaveStage('saving');
+                await persist(
+                  generateRecurring({
+                    ...b,
+                    recurrences: [...b.recurrences.filter((x) => x.id !== r.id), r],
+                  }),
+                  'Recurring schedule saved. Due expenses are unpaid and ready for review.',
                 );
-                next = { ...next, invoices: [...invoices, uploaded], invoiceStatus: 'attached' };
-                setInvoices(next.invoices);
-                setInvoiceStatus('attached');
-                setFile(null);
+              } else {
+                if (file) {
+                  setSaveStage('uploading');
+                  const uploaded = await uploadExpenseInvoice(
+                    file,
+                    next.id,
+                    next.allocations.map((a) => b.brands.find((brand) => brand.id === a.brandId)!),
+                  );
+                  next = { ...next, invoices: [...invoices, uploaded], invoiceStatus: 'attached' };
+                  setInvoices(next.invoices);
+                  setInvoiceStatus('attached');
+                  setFile(null);
+                }
+                validateExpense(next, b);
+                setSaveStage('saving');
+                await persist(
+                  { ...b, expenses: [...b.expenses.filter((x) => x.id !== next.id), next] },
+                  'Expense saved.',
+                );
               }
-              validateExpense(next, b);
-              await persist(
-                { ...b, expenses: [...b.expenses.filter((x) => x.id !== next.id), next] },
-                'Expense saved.',
-              );
-            }
-            close();
-          });
+              close();
+            })
+            .finally(() => {
+              saveLock.current = false;
+              setSaveStage(null);
+            });
         }}
       >
         <fieldset disabled={busy}>
@@ -808,6 +1108,12 @@ function ExpenseEditor({
                   }}
                 />
               </label>
+              {file && (
+                <div className="expense-save-file">
+                  <FileCheck2 size={18} />
+                  <span>Selected invoice: {file.name}</span>
+                </div>
+              )}
               {invoices.map((i) => (
                 <p key={i.id}>
                   <a href={i.url} target="_blank" rel="noreferrer">
@@ -834,10 +1140,14 @@ function ExpenseEditor({
                 ))}
               </select>
             </label>
-            <label>
-              Purchase date
-              <input name="date" type="date" required defaultValue={expense.date} />
-            </label>
+            {schedule ? (
+              <input type="hidden" name="date" value={expense.date} />
+            ) : (
+              <label>
+                Purchase date
+                <input name="date" type="date" required defaultValue={expense.date} />
+              </label>
+            )}
             <label>
               Legal business / GST registration
               <select
@@ -854,33 +1164,58 @@ function ExpenseEditor({
                 ))}
               </select>
             </label>
-            <label>
-              Total including GST (₹)
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                required
-                value={amount}
-                onChange={(e) => {
-                  setAmount(e.target.value);
-                  if (splits.length === 1 && splitMode === 'amount')
-                    setSplits([{ ...splits[0], value: e.target.value }]);
-                }}
-              />
-            </label>
-            <label>
-              Included GST (₹)
-              <input
-                name="gst"
-                type="number"
-                min="0"
-                step="0.01"
-                defaultValue={expense.gst / 100}
-                required
-              />
-            </label>
+            {!itemDrafts && (
+              <>
+                <label>
+                  Total including GST (₹)
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    required
+                    value={amount}
+                    onChange={(e) => {
+                      setAmount(e.target.value);
+                      if (splits.length === 1 && splitMode === 'amount')
+                        setSplits([{ ...splits[0], value: e.target.value }]);
+                    }}
+                  />
+                </label>
+                <label>
+                  Included GST (₹)
+                  <input
+                    name="gst"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    defaultValue={expense.gst / 100}
+                    required
+                  />
+                </label>
+              </>
+            )}
           </div>
+          {itemDrafts ? (
+            <InvoiceItemsEditor items={itemDrafts} onChange={changeItems} />
+          ) : (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() =>
+                setItemDrafts([
+                  {
+                    id: crypto.randomUUID(),
+                    description: expense.description,
+                    quantity: '1',
+                    unitPrice: String((expense.amount - expense.gst) / 100),
+                    gst: String(expense.gst / 100),
+                  },
+                ])
+              }
+            >
+              Add item breakdown
+            </button>
+          )}
           <h3>Brand allocation</h3>
           <label>
             Split using

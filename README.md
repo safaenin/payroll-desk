@@ -211,3 +211,42 @@ Previously saved expenses retain their original registration selection.
 The expense dashboard defaults to **All dates**, so historical purchases remain visible.
 Use **This month** or a custom date range for a narrower view. A notice shows how
 many purchases fall outside the chosen dates, with **Show all dates** to reveal them.
+
+### Adding subscriptions
+
+Open **Expenses → Recurring expenses & subscriptions → Add subscription**. Enter
+the supplier, amount, brand allocation, monthly or yearly frequency, and next
+occurrence date. Saving creates any already-due expenses as unpaid records for
+review; future occurrences are created on workspace load or **Check schedule**.
+You can also use **Make recurring** on an existing expense. Price changes, pausing,
+and cancellation are available on the schedule. This records expenses and payments;
+it never charges a card or sends money automatically.
+
+Expense, recurring-schedule and payment-dialog errors appear inside their dialog,
+with focus moved to the error. Entered values remain available for correction or
+retry after an upload or save failure.
+
+Saving an expense shows progress inside the dialog: checking details, uploading
+an attached invoice to Google Drive, then saving the expense. The current step
+uses an activity indicator rather than an estimated percentage. Duplicate submits
+and closing the dialog are disabled while a save is running. If saving fails, the
+form returns with the error and entered details available for retry; a completed
+invoice upload is retained in the editor.
+
+### Multiple items on an invoice
+
+New expenses support multiple product or service lines. Enter each item's description,
+quantity (up to three decimal places), unit price before GST, and the total GST amount
+for that line. The app calculates the line totals and full invoice amount automatically.
+Use the final unit price after any discount; enter delivery or other charges as another
+line when needed. One PDF, payment ledger and brand allocation apply to the whole
+invoice. Existing expenses keep their totals and can gain an item breakdown using
+**Add item breakdown**. Invoice details show the saved items. Recurring schedules
+also retain their item breakdown.
+
+If an invoice is selected but Drive is disconnected, Save opens a connection prompt
+inside the expense dialog. Connect there, then press Save again. Expense fields,
+item lines, brand splits and the selected file stay in memory in the mounted form.
+Cancelling or failing Google sign-in leaves the draft available for another attempt.
+Expired Drive access also offers reconnection in the dialog. This is an in-session
+draft; reloading the page or closing the expense dialog still discards unsaved work.

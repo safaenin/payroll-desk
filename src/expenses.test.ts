@@ -280,3 +280,56 @@ describe('brands sharing legal businesses', () => {
     expect(registrationForBrands(b, ['b'])).toBe('second');
   });
 });
+
+describe('multi-item invoices', () => {
+  it('sums quantities and each line GST in exact paise', async () => {
+    const { invoiceItemTotals } = await import('./expenses');
+    expect(
+      invoiceItemTotals([
+        { id: 'a', description: 'Laptop', quantity: 1, unitPrice: 5000000, gst: 900000 },
+        { id: 'b', description: 'Mouse', quantity: 2, unitPrice: 50000, gst: 18000 },
+      ]),
+    ).toEqual({ subtotal: 5100000, gst: 918000, amount: 6018000 });
+  });
+  it('supports fractional quantities and rounds each line to paise', async () => {
+    const { invoiceItemTotals } = await import('./expenses');
+    expect(
+      invoiceItemTotals([
+        { id: 'a', description: 'Service', quantity: 1.125, unitPrice: 101, gst: 0 },
+      ]).amount,
+    ).toBe(114);
+  });
+  it('rejects invalid items and totals that disagree with their invoice', async () => {
+    const { invoiceItemTotals } = await import('./expenses');
+    const item = { id: 'a', description: 'Item', quantity: 1, unitPrice: 100, gst: 18 };
+    for (const invalid of [
+      { ...item, quantity: 0 },
+      { ...item, quantity: 1.1234 },
+      { ...item, description: '' },
+      { ...item, unitPrice: -1 },
+    ])
+      expect(() => invoiceItemTotals([invalid])).toThrow();
+    expect(() => invoiceItemTotals([])).toThrow();
+    expect(() => validateExpense({ ...expense(), items: [item] }, business())).toThrow('match');
+  });
+  it('preserves item breakdown in generated recurring purchases', async () => {
+    const { generateRecurring } = await import('./expenses');
+    const b = business();
+    const template = {
+      ...expense(),
+      items: [{ id: 'a', description: 'Subscription', quantity: 1, unitPrice: 8201, gst: 1800 }],
+    };
+    b.recurrences = [
+      {
+        id: 'items',
+        template,
+        frequency: 'monthly',
+        nextDate: '2026-01-31',
+        anchorDay: 31,
+        status: 'active',
+      },
+    ];
+    const generated = generateRecurring(b, '2026-01-31');
+    expect(generated.expenses.at(-1)?.items).toEqual(template.items);
+  });
+});
