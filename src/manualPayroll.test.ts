@@ -51,7 +51,7 @@ it('pays 10000 without attendance, with deductions and advance recoveries', () =
   });
   expect(calculate(s, '2026-08')).toEqual([]);
   s.coverage['2026-09'] = true;
-  expect(approve(s, '2026-09').runs[0].lines[0]).toEqual(line);
+  expect(approve(s, '2026-09').runs[0].lines[0]).toEqual({ ...line, brandAllocations: [] });
 });
 it('pays manually entered non-FR days, counts half-days only toward base', () => {
   const s = saveManualAttendance(
@@ -115,4 +115,97 @@ it('blocks mid-month changes involving fixed pay', () => {
   expect(calculate(s, '2026-09')[0].issues).toContain(
     'Fixed monthly wage changes must start on the first day of a month',
   );
+});
+
+it('defaults unsaved manual dates to Present and preserves existing attendance', async () => {
+  const { manualAttendanceStatuses, manualAttendanceOverview } = await import('./ManualAttendance');
+  const s = fixture();
+  s.attendance = [
+    {
+      code: 'SE-1',
+      name: 'Staff',
+      date: '2026-09-02',
+      role: 'Assistant',
+      status: 'A',
+      payable: 0,
+      store: 'Manual',
+      primaryStore: 'Manual',
+    },
+  ];
+  const defaults = manualAttendanceStatuses(s, 'SE-1', '2026-09');
+  expect(defaults['2026-09-01']).toBe('P');
+  expect(defaults['2026-09-02']).toBe('A');
+  expect(manualAttendanceOverview('2026-09', defaults)).toMatchObject({
+    P: 29,
+    A: 1,
+    total: 30,
+    payableDays: 29,
+  });
+  expect(s.attendance).toHaveLength(1);
+});
+it('counts every status and half-days in the selected month only', async () => {
+  const { manualAttendanceOverview } = await import('./ManualAttendance');
+  const statuses = Object.fromEntries(monthDates('2026-02').map((date) => [date, 'P']));
+  Object.assign(statuses, {
+    '2026-02-01': 'HD',
+    '2026-02-02': 'A',
+    '2026-02-03': 'WO',
+    '2026-02-04': 'L',
+    '2026-01-01': 'A',
+  });
+  expect(manualAttendanceOverview('2026-02', statuses)).toMatchObject({
+    P: 24,
+    HD: 1,
+    A: 1,
+    WO: 1,
+    L: 1,
+    total: 28,
+    payableDays: 24.5,
+  });
+});
+it('does not invent Present records for approved months or reuse another employee month', async () => {
+  const { manualAttendanceStatuses, manualAttendanceOverview } = await import('./ManualAttendance');
+  const s = fixture(true);
+  s.coverage['2026-09'] = true;
+  const approved = approve(s, '2026-09');
+  expect(
+    manualAttendanceOverview('2026-09', manualAttendanceStatuses(approved, 'SE-1', '2026-09'))
+      .unrecorded,
+  ).toBe(30);
+  expect(
+    Object.values(manualAttendanceStatuses(s, 'other', '2026-10')).filter((v) => v === 'P'),
+  ).toHaveLength(31);
+});
+
+it('aligns calendar dates with Sunday-first weekdays and complete weeks', async () => {
+  const { attendanceCalendarDays } = await import('./ManualAttendance');
+  const october = attendanceCalendarDays('2026-10');
+  expect(october.slice(0, 4)).toEqual([null, null, null, null]);
+  expect(october[4]).toBe('2026-10-01');
+  expect(october.filter(Boolean)).toHaveLength(31);
+  expect(october.length % 7).toBe(0);
+  expect(attendanceCalendarDays('2026-02')[0]).toBe('2026-02-01');
+  expect(attendanceCalendarDays('2024-02').filter(Boolean)).toHaveLength(29);
+});
+
+it('treats Failed as unpaid and excludes it from full present days and bonus', async () => {
+  const { manualAttendanceStatuses, manualAttendanceOverview } = await import('./ManualAttendance');
+  const s = fixture();
+  const statuses = manualAttendanceStatuses(s, 'SE-1', '2026-09');
+  for (const date of monthDates('2026-09').slice(0, 5)) statuses[date] = 'F';
+  const result = saveManualAttendance(s, 'SE-1', '2026-09', statuses);
+  expect(result.attendance.filter((a) => a.status === 'F').every((a) => a.payable === 0)).toBe(
+    true,
+  );
+  expect(manualAttendanceOverview('2026-09', statuses)).toMatchObject({
+    F: 5,
+    P: 25,
+    payableDays: 25,
+  });
+  expect(calculate(result, '2026-09')[0]).toMatchObject({
+    base: 1250000,
+    fullDays: 25,
+    attendanceBonus: 0,
+    issues: [],
+  });
 });

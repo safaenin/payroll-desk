@@ -25,3 +25,29 @@ it('rejects a salary workbook instead of misreading it as attendance', async () 
     'Attendance worksheet',
   );
 });
+
+it('imports F and Failed as unpaid and rejects paid Failed records', async () => {
+  for (const status of ['F', 'Failed']) {
+    const wb = new ExcelJS.Workbook(),
+      sheet = wb.addWorksheet('Attendance');
+    sheet.addRow([
+      'employee_code',
+      'full_name',
+      'scheduled_date',
+      'employee_role_name',
+      'muster_status',
+      'muster_payable',
+      'store_name',
+      'primary_store',
+    ]);
+    sheet.addRow(['E1', 'Example', '2026-09-01', 'FR_Packer', status, 0, 'A', 'A']);
+    expect((await parseAttendance((await wb.xlsx.writeBuffer()) as ArrayBuffer))[0]).toMatchObject({
+      status: 'F',
+      payable: 0,
+    });
+    sheet.getRow(2).getCell(6).value = 1;
+    await expect(parseAttendance((await wb.xlsx.writeBuffer()) as ArrayBuffer)).rejects.toThrow(
+      'disagree',
+    );
+  }
+});

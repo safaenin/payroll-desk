@@ -45,6 +45,7 @@ export function invoiceItemTotals(items: ExpenseItem[]) {
   return { subtotal, gst, amount: subtotal + gst };
 }
 export type Expense = {
+  deletion?: { remainingFileIds: string[] };
   items?: ExpenseItem[];
   id: string;
   description: string;

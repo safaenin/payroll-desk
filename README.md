@@ -250,3 +250,56 @@ item lines, brand splits and the selected file stay in memory in the mounted for
 Cancelling or failing Google sign-in leaves the draft available for another attempt.
 Expired Drive access also offers reconnection in the dialog. This is an in-session
 draft; reloading the page or closing the expense dialog still discards unsaved work.
+
+### Deleting an expense
+
+Choose **Delete expense** on an invoice and type **DELETE** to confirm. This removes
+its expense record, item breakdown, GST status, allocations and payment history.
+Attached files move to Google Drive Trash; connect the Drive account that owns
+those files before deleting. Brands, legal businesses, recurring schedules and
+other expenses are preserved. Pause a subscription separately to stop future invoices.
+
+Cleanup is checkpointed before touching files. During pending cleanup, other saves
+are blocked. If interrupted, reload and use **Continue deletion** on that expense.
+Files already confirmed in Trash are skipped on retry. Invoice records are removed
+only after all attached files have been confirmed in Trash. Publish the updated
+`firestore.rules` to enable deleting business expense records.
+
+### Salaries in brand expenses
+
+In **Employees → Add/Edit employee → Salary brands**, choose the effective payroll
+month and assign 100% to a brand, or split across brands with percentages totaling
+100%. Keep salary entry and payment recording in Payroll; do not add the salary
+again as a business expense. For a fixed ₹10,000 monthly employee, select manual
+payroll if absent from attendance imports and add a fixed monthly wage effective
+from the first day of the starting month.
+
+The Expenses dashboard includes **Approved salaries**, **Combined cost**, **Total
+cash paid**, **Combined outstanding**, and a salary ledger under the selected brand.
+Salary costs follow payroll month-end dates; cash payments follow actual payment
+dates. Draft payroll is excluded. Salary cost includes net pay plus recovered salary
+advances; cash paid includes recorded salary payments, not separately issued advances.
+Outstanding reflects remaining approved net pay. GST and invoice follow-up totals
+continue to apply to business purchases only.
+
+New payroll approvals snapshot salary brand allocations so later employee changes
+do not move approved salaries to different brands. Older approvals without allocation
+snapshots use the employee's dated assignment history. Unassigned salaries are shown
+in all-brand totals and flagged; they are not attributed to a specific brand. No new
+Firestore collections or rule changes are needed for salary brand allocation.
+
+Manual attendance defaults unrecorded dates in an unapproved month to **P**. Existing
+saved attendance is preserved. The selected employee's overview updates while editing
+and shows P, HD, A, WO, L, total calendar days and payable days (P + 0.5 × HD).
+Review defaults before saving; they are not automatically written to Firestore.
+Approved attendance stays locked, and missing dates in approved months are shown as
+unrecorded rather than assumed present. Fixed monthly wages remain independent of
+attendance totals.
+
+Manual attendance uses a Sunday-first calendar. Each day is circular and shows its
+number and status; tap a day to select its attendance status. P is green, A is red,
+WO is yellow and F (Failed) is grey. Half-days and leave have separate colors and
+labels. The employee summary updates immediately; save to persist the changes.
+F is unpaid and does not count toward full-present-day bonuses. Excel imports accept
+both F and Failed, normalized to F, and require zero payable days for these rows.
+Approved payroll and attendance remain locked; fixed monthly wages are unaffected.

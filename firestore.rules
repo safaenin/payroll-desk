@@ -47,6 +47,9 @@ service cloud.firestore {
       allow update: if owner(uid) && group == 'advances'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['schedule']);
       allow delete: if false;
+      allow delete: if owner(uid) && group == 'businessExpenses'
+        && resource.data.keys().hasAll(['deletion'])
+        && resource.data.deletion.remainingFileIds.size() == 0;
       // Cascade cleanup is allowed only during an owner-started deletion job.
       allow delete: if owner(uid) && deletingEmployee(uid)
         && group in [

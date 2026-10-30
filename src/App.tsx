@@ -1,3 +1,6 @@
+import SalaryBrandEditor from './SalaryBrandEditor';
+import type { SalaryBrandAssignment } from './brandPayroll';
+import type { Brand } from './expenses';
 import ExpensesPanel from './ExpensesPanel';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
@@ -42,6 +45,7 @@ import {
   auth,
   configured,
   firebaseConfigured,
+  deleteExpense,
   loadCloud,
   loadWorkspace,
   login,
@@ -837,11 +841,17 @@ export default function App() {
                 state={state}
                 month={month}
                 busy={busy}
-                save={(next) =>
-                  task(() =>
-                    commit(next, 'Manual attendance saved. Review payroll before approval.'),
-                  )
-                }
+                save={async (next) => {
+                  setBusy(true);
+                  try {
+                    return await commit(
+                      next,
+                      'Manual attendance saved. Review payroll before approval.',
+                    );
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
               />
               <div className="stats-grid">
                 <Stat
@@ -1205,6 +1215,16 @@ export default function App() {
               connected={driveReady}
               connect={authorizeDrive}
               save={commit}
+              remove={async (id, progress) => {
+                try {
+                  setState(await deleteExpense(state, id, progress));
+                } catch (error) {
+                  try {
+                    setState(await loadCloud());
+                  } catch {}
+                  throw error;
+                }
+              }}
               task={task}
             />
           )}
@@ -1422,6 +1442,7 @@ export default function App() {
         >
           <EmployeeForm
             employee={employee}
+            brands={state.business?.brands ?? []}
             busy={busy}
             onSave={(e) =>
               void task(async () => {
@@ -1774,10 +1795,12 @@ function Modal({
 }
 function EmployeeForm({
   employee,
+  brands,
   busy,
   onSave,
 }: {
   employee: Employee | null;
+  brands: Brand[];
   busy: boolean;
   onSave: (e: Employee) => void;
 }) {
@@ -1786,9 +1809,15 @@ function EmployeeForm({
     [eligible, setEligible] = useState(true),
     [rateError, setRateError] = useState(''),
     [rateMode, setRateMode] = useState('daily');
+  const [assignment, setAssignment] = useState<SalaryBrandAssignment | null>(null);
+  const [salaryBrandError, setSalaryBrandError] = useState('');
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
+    if (salaryBrandError) {
+      setRateError(salaryBrandError);
+      return;
+    }
     if (!rates.length) {
       setRateError('Add at least one dated wage before saving.');
       return;
@@ -1803,6 +1832,9 @@ function EmployeeForm({
       offerSent: f.get('offerSent') === 'on',
       offerReceived: f.get('offerReceived') === 'on',
       rates,
+      brandHistory: assignment
+        ? [...(employee?.brandHistory ?? []).filter((a) => a.from !== assignment.from), assignment]
+        : (employee?.brandHistory ?? []),
     });
   }
   return (
@@ -1836,6 +1868,12 @@ function EmployeeForm({
         Manual payroll — employee is missing from imported attendance (allows non-FR roles)
       </label>
       <p>Use the generated internal code if no official employee code exists.</p>
+      <SalaryBrandEditor
+        employee={employee}
+        brands={brands}
+        onChange={setAssignment}
+        onError={setSalaryBrandError}
+      />
       <h3>Wage history</h3>
       {rates.map((r) => (
         <div className="wage-row" key={r.from}>

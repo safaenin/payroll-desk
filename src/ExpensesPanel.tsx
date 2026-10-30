@@ -1,3 +1,4 @@
+import { brandPayrollSummary } from './brandPayroll';
 import InvoiceItemsEditor, {
   blankInvoiceItem,
   draftItemTotals,
@@ -36,6 +37,7 @@ import { uploadExpenseInvoice } from './storage';
 type Props = {
   state: State;
   busy: boolean;
+  remove: (id: string, progress: (message: string) => void) => Promise<void>;
   connected: boolean;
   connect: () => Promise<void>;
   save: (state: State, message: string) => Promise<unknown>;
@@ -71,7 +73,15 @@ const newExpense = (b: Business, brandId = b.brands[0]?.id): Expense => ({
   notes: '',
   review: false,
 });
-export default function ExpensesPanel({ state, busy, connected, connect, save, task }: Props) {
+export default function ExpensesPanel({
+  state,
+  busy,
+  connected,
+  connect,
+  save,
+  task,
+  remove,
+}: Props) {
   const b = state.business ?? emptyBusiness();
   const [activeView, setActiveView] = useState<'expenses' | 'brands'>('expenses');
   const [brand, setBrand] = useState(''),
@@ -84,7 +94,12 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
     [paying, setPaying] = useState<Expense | null>(null),
     [view, setView] = useState<Expense | null>(null);
   const paymentTask = useDialogTask(task);
+  const deletionTask = useDialogTask(task);
+  const [deleting, setDeleting] = useState<Expense | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleteProgress, setDeleteProgress] = useState('');
   const result = expenseSummary(b, brand, from, to);
+  const salaries = brandPayrollSummary(state, brand, from, to);
   const brandExpenses = b.expenses.filter(
     (e) => !brand || e.allocations.some((a) => a.brandId === brand),
   );
@@ -118,6 +133,22 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
   }
   return (
     <div className="expenses-module">
+      {b.expenses.some((e) => e.deletion) && (
+        <div className="message error" role="status">
+          <span>An expense deletion needs to be completed before other changes can be saved.</span>
+          <button
+            className="text-button"
+            disabled={busy}
+            onClick={() => {
+              deletionTask.clear();
+              setDeleteConfirmation('');
+              setDeleting(b.expenses.find((e) => e.deletion)!);
+            }}
+          >
+            Continue deletion
+          </button>
+        </div>
+      )}
       <div className="expense-view-tabs" role="tablist" aria-label="Expense workspace">
         <button
           role="tab"
@@ -215,9 +246,37 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
           </div>
           <div className="stats-grid">
             {[
-              ['Purchases', money(result.purchased), 'By purchase date · GST inclusive'],
-              ['Cash paid', money(result.paid), 'By payment date, including older purchases'],
-              ['Outstanding', money(result.outstanding), 'Balance on purchases in this date range'],
+              ['Business expenses', money(result.purchased), 'By purchase date · GST inclusive'],
+              [
+                'Approved salaries',
+                money(salaries.cost),
+                'By payroll month end · includes advance recovery',
+              ],
+              [
+                'Combined cost',
+                money(result.purchased + salaries.cost),
+                'Purchases + approved salaries',
+              ],
+              [
+                'Total cash paid',
+                money(result.paid + salaries.paid),
+                'Expense + salary payments by payment date',
+              ],
+              [
+                'Combined outstanding',
+                money(result.outstanding + salaries.outstanding),
+                'Selected purchases and payroll months',
+              ],
+              [
+                'Expense cash paid',
+                money(result.paid),
+                'By payment date, including older purchases',
+              ],
+              [
+                'Expense outstanding',
+                money(result.outstanding),
+                'Balance on purchases in this date range',
+              ],
               ['Missing invoices', String(result.missing), 'Purchases awaiting a document'],
               ['Awaiting GSTR-2B', money(result.pendingGST), 'GST on purchases in this date range'],
               [
@@ -317,8 +376,9 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
                             </button>
                             <button
                               className="text-button"
-                              disabled={busy}
+                              disabled={busy || Boolean(e.deletion)}
                               onClick={() => {
+                                if (e.deletion) return;
                                 setSchedule(null);
                                 setEditing(e);
                               }}
@@ -327,7 +387,7 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
                             </button>
                             <button
                               className="text-button"
-                              disabled={busy || paid(e) >= e.amount}
+                              disabled={busy || Boolean(e.deletion) || paid(e) >= e.amount}
                               onClick={() => {
                                 paymentTask.clear();
                                 setPaying(e);
@@ -337,8 +397,9 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
                             </button>
                             <button
                               className="text-button"
-                              disabled={busy}
+                              disabled={busy || Boolean(e.deletion)}
                               onClick={() => {
+                                if (e.deletion) return;
                                 setSchedule({
                                   id: crypto.randomUUID(),
                                   template: e,
@@ -351,6 +412,18 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
                               }}
                             >
                               Make recurring
+                            </button>
+                            <button
+                              className="text-button expense-delete-action"
+                              disabled={busy}
+                              onClick={() => {
+                                deletionTask.clear();
+                                setDeleteConfirmation('');
+                                setDeleteProgress('');
+                                setDeleting(e);
+                              }}
+                            >
+                              {e.deletion ? 'Continue deletion' : 'Delete expense'}
                             </button>
                           </div>
                         </td>
@@ -372,6 +445,56 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
                   </button>
                 )}
               </div>
+            )}
+          </section>
+          <section className="panel">
+            <div className="section-heading">
+              <div>
+                <h2>Brand salaries</h2>
+                <p>
+                  Approved payroll only. Salary costs use the last day of each payroll month; cash
+                  paid uses the actual payment date.
+                </p>
+                {salaries.unassigned > 0 && (
+                  <p>
+                    {salaries.unassigned} payroll entries have no brand allocation. Assign salary
+                    brands in the employee profile; approved snapshots remain fixed.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>EMPLOYEE</th>
+                    <th>PAYROLL MONTH</th>
+                    <th>SALARY COST</th>
+                    <th>PAID</th>
+                    <th>OUTSTANDING</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {salaries.rows.map((row) => (
+                    <tr key={row.month + row.code}>
+                      <td>
+                        {row.name}
+                        <small>{row.code}</small>
+                      </td>
+                      <td>{row.month}</td>
+                      <td>{money(row.cost)}</td>
+                      <td>{money(row.paid)}</td>
+                      <td>{money(row.outstanding)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {!salaries.rows.length && (
+              <p className="empty-inline">
+                No approved salaries for this brand and date range. Set salary brands on employees,
+                then approve monthly payroll.
+              </p>
             )}
           </section>
           <section className="panel history">
@@ -503,6 +626,82 @@ export default function ExpensesPanel({ state, busy, connected, connect, save, t
       )}
       {activeView === 'brands' && (
         <BrandManagement business={b} busy={busy} persist={persist} task={task} />
+      )}
+      {deleting && (
+        <Dialog
+          title="Delete this expense?"
+          busy={busy}
+          error={deletionTask.error}
+          close={() => {
+            if (!busy) setDeleting(null);
+          }}
+        >
+          <p>
+            <strong>{deleting.description}</strong> · {money(deleting.amount)}
+          </p>
+          <p>
+            This permanently removes this expense, its item breakdown, GST details, brand
+            allocations and {deleting.payments.length} payment records. Its{' '}
+            {deleting.invoices.length} attached files move to Google Drive Trash. Recurring
+            schedules and other expenses are kept.
+          </p>
+          {deleting.recurrenceId && (
+            <p>
+              You can pause or cancel the recurring schedule separately to stop future expenses.
+            </p>
+          )}
+          <p>
+            Once deletion starts, other saves are blocked until cleanup finishes. If interrupted,
+            use Continue deletion.
+          </p>
+          {deleteProgress && (
+            <p role="status">
+              <LoaderCircle className="expense-save-spinner" size={16} /> {deleteProgress}
+            </p>
+          )}
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void deletionTask.run(async () => {
+                try {
+                  await remove(deleting.id, setDeleteProgress);
+                  setDeleting(null);
+                } finally {
+                  setDeleteProgress('');
+                }
+              });
+            }}
+          >
+            <fieldset disabled={busy}>
+              <label>
+                Type DELETE to confirm
+                <input
+                  value={deleteConfirmation}
+                  onChange={(e) => setDeleteConfirmation(e.target.value)}
+                  required
+                  pattern="DELETE"
+                  autoComplete="off"
+                />
+              </label>
+              {!!deleting.invoices.length && (
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => void deletionTask.run(connect)}
+                >
+                  Connect Google Drive
+                </button>
+              )}
+              <button className="primary danger" disabled={busy || deleteConfirmation !== 'DELETE'}>
+                {busy
+                  ? 'Deleting…'
+                  : deleting.deletion
+                    ? 'Continue deletion'
+                    : 'Delete expense and files'}
+              </button>
+            </fieldset>
+          </form>
+        </Dialog>
       )}
       {editing && (
         <ExpenseEditor

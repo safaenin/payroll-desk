@@ -7,7 +7,13 @@ const memory = vi.hoisted(() => ({
 vi.mock('firebase/app', () => ({ initializeApp: () => ({}) }));
 vi.mock('firebase/auth', () => ({
   getAuth: () => ({ currentUser: { uid: 'owner' } }),
-  GoogleAuthProvider: class {},
+  GoogleAuthProvider: class {
+    static credentialFromResult() {
+      return { accessToken: 'test-token' };
+    }
+    addScope() {}
+    setCustomParameters() {}
+  },
   signInWithPopup: vi.fn(),
   signOut: vi.fn(),
   setPersistence: vi.fn(),
@@ -142,4 +148,59 @@ it('shares the owner workspace with configured admins and rejects unlisted accou
   vi.stubEnv('VITE_ADMIN_UIDS', 'owner');
   const admin = await import('./storage');
   expect((await admin.loadCloud()).revision).toBe(0);
+});
+
+it('deletes only the selected invoice record and its embedded related information', async () => {
+  const s = await import('./storage');
+  memory.docs.set('owners/owner/businessExpenses/invoice', {
+    id: 'invoice',
+    invoices: [],
+    payments: [{ id: 'payment' }],
+    items: [{ id: 'item' }],
+  });
+  memory.docs.set('owners/owner/businessExpenses/other', { id: 'other', invoices: [] });
+  const state = await s.deleteExpense(await s.loadCloud(), 'invoice', () => {});
+  expect(state.business?.expenses.map((e) => e.id)).toEqual(['other']);
+  expect(memory.docs.has('owners/owner/businessExpenses/invoice')).toBe(false);
+  expect(memory.docs.get('owners/owner/meta/revision').expenseDeletion).toBeUndefined();
+});
+it('persists unfinished file cleanup and resumes without retrashing completed files', async () => {
+  const s = await import('./storage');
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(new Response('{"files":[]}'))
+    .mockResolvedValueOnce(new Response('{"id":"file1","trashed":true}'))
+    .mockResolvedValueOnce(new Response('{}', { status: 403 }));
+  vi.stubGlobal('fetch', fetchMock);
+  try {
+    memory.docs.set('owners/owner/businessExpenses/invoice', {
+      id: 'invoice',
+      invoices: [{ id: 'file1' }, { id: 'file2' }],
+    });
+    await s.connectDrive();
+    await expect(s.deleteExpense(await s.loadCloud(), 'invoice', () => {})).rejects.toThrow();
+    const pending = await s.loadCloud();
+    expect(pending.business?.expenses[0].deletion?.remainingFileIds).toEqual(['file2']);
+    await expect(s.saveCloud(pending, pending)).rejects.toThrow('pending expense deletion');
+    fetchMock.mockResolvedValueOnce(new Response('{"id":"file2","trashed":true}'));
+    expect((await s.deleteExpense(pending, 'invoice', () => {})).business?.expenses).toEqual([]);
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/file1?'))).toHaveLength(1);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+it('keeps invoices if Drive is disconnected or the workspace revision changed', async () => {
+  const s = await import('./storage');
+  memory.docs.set('owners/owner/businessExpenses/invoice', {
+    id: 'invoice',
+    invoices: [{ id: 'file' }],
+  });
+  await expect(s.deleteExpense(await s.loadCloud(), 'invoice', () => {})).rejects.toThrow(
+    'Connect Google Drive',
+  );
+  memory.docs.set('owners/owner/businessExpenses/invoice', { id: 'invoice', invoices: [] });
+  const stale = await s.loadCloud();
+  memory.docs.set('owners/owner/meta/revision', { value: 99 });
+  await expect(s.deleteExpense(stale, 'invoice', () => {})).rejects.toThrow('Records changed');
+  expect(memory.docs.has('owners/owner/businessExpenses/invoice')).toBe(true);
 });

@@ -41,11 +41,16 @@ export async function parseAttendance(buffer: ArrayBuffer): Promise<Attendance[]
       payable = Number(text);
     if (!text || ![0, 0.5, 1].includes(payable))
       throw new Error(`Row ${i}: payable days must be 0, 0.5 or 1.`);
-    const status = get('muster_status').text.trim(),
+    const rawStatus = get('muster_status').text.trim();
+    const status = /^(f|failed)$/i.test(rawStatus) ? 'F' : rawStatus,
       role = get('employee_role_name').text.trim();
     if (!role || !status || !get('full_name').text.trim())
       throw new Error(`Row ${i}: name, role and status are required.`);
-    if ((status === 'P' && payable !== 1) || (status === 'HD' && payable !== 0.5))
+    if (
+      (status === 'P' && payable !== 1) ||
+      (status === 'HD' && payable !== 0.5) ||
+      (status === 'F' && payable !== 0)
+    )
       throw new Error(`Row ${i}: attendance status and payable value disagree.`);
     rows.push({
       code,

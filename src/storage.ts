@@ -162,6 +162,8 @@ export async function saveCloud(previous: State, next: State): Promise<State> {
     await runTransaction(db, async (tx) => {
       const ref = doc(db!, root, 'meta/revision');
       const metadata = (await tx.get(ref)).data();
+      if (metadata?.expenseDeletion)
+        throw new Error('Finish the pending expense deletion before saving changes.');
       if (metadata?.employeeDeletion)
         throw new Error('Finish the pending employee deletion before changing payroll records.');
       const current = metadata?.value ?? 0;
@@ -390,6 +392,7 @@ export async function startEmployeeDeletion(previous: State, code: string): Prom
   await runTransaction(db, async (tx) => {
     const ref = doc(db!, `owners/${ownerUid()}/meta/revision`),
       metadata = (await tx.get(ref)).data();
+    if (metadata?.expenseDeletion) throw new Error('Finish the pending expense deletion first.');
     if (metadata?.employeeDeletion)
       throw new Error('Another employee deletion is already pending. Reload to continue it.');
     if ((metadata?.value ?? 0) !== previous.revision)
@@ -481,7 +484,7 @@ async function continueEmployeeDeletion(progress: (message: string) => void): Pr
 
 export async function loadWorkspace(): Promise<State> {
   const state = await loadCloud();
-  if (state.employeeDeletion) return state;
+  if (state.employeeDeletion || state.business?.expenses.some((e) => e.deletion)) return state;
   const business = generateRecurring(state.business ?? emptyBusiness());
   if (JSON.stringify(business) !== JSON.stringify(state.business))
     return saveCloud(state, { ...state, business });
@@ -557,4 +560,64 @@ export async function uploadExpenseInvoice(file: File, expenseId: string, brands
     url: data.webViewLink || `https://drive.google.com/file/d/${data.id}/view`,
     uploadedAt: new Date().toISOString(),
   };
+}
+
+/** Persist the cleanup intent before touching Drive; interrupted deletions can be resumed. */
+export async function deleteExpense(
+  previous: State,
+  id: string,
+  progress: (message: string) => void,
+): Promise<State> {
+  ownerUid();
+  if (!db) throw new Error('Firestore is not configured.');
+  const initial = previous.business?.expenses.find((e) => e.id === id);
+  if (!initial) throw new Error('Expense not found. Reload the workspace.');
+  const ids = initial.deletion?.remainingFileIds ?? [...new Set(initial.invoices.map((f) => f.id))];
+  if (ids.length && !driveToken)
+    throw new Error('Connect Google Drive to delete the attached invoice files.');
+  // Do not trash a file that another expense still references.
+  if (
+    previous.business?.expenses.some(
+      (e) => e.id !== id && e.invoices.some((f) => ids.includes(f.id)),
+    )
+  )
+    throw new Error(
+      'An attached file is also linked to another expense. Review that shared attachment before deleting.',
+    );
+  const root = `owners/${ownerUid()}`,
+    expenseRef = doc(db, root, 'businessExpenses/' + id),
+    metaRef = doc(db, root, 'meta/revision');
+  async function checkpoint(state: State, remaining: string[], finish = false) {
+    await runTransaction(db!, async (tx) => {
+      const meta = (await tx.get(metaRef)).data();
+      const expense = (await tx.get(expenseRef)).data();
+      if (meta?.employeeDeletion) throw new Error('Finish employee deletion first.');
+      if (meta?.expenseDeletion && meta.expenseDeletion !== id)
+        throw new Error('Finish the other pending expense deletion first.');
+      if ((meta?.value ?? 0) !== state.revision)
+        throw new Error('Records changed in another session. Reload and continue deletion.');
+      if (!expense) throw new Error('Expense no longer exists. Reload the workspace.');
+      if (finish) {
+        tx.delete(expenseRef);
+        tx.set(metaRef, { value: state.revision + 1 });
+      } else {
+        tx.set(expenseRef, { ...expense, deletion: { remainingFileIds: remaining } });
+        tx.set(metaRef, { value: state.revision + 1, expenseDeletion: id });
+      }
+    });
+    return loadCloud();
+  }
+  let current = previous;
+  if (!initial.deletion) current = await checkpoint(current, ids);
+  let remaining = [...ids];
+  for (const fileId of ids) {
+    progress(
+      `Moving invoice files to Drive Trash (${ids.length - remaining.length + 1}/${ids.length})…`,
+    );
+    await trashDriveFile(fileId);
+    remaining = remaining.filter((value) => value !== fileId);
+    current = await checkpoint(current, remaining);
+  }
+  progress('Removing expense, items and payment history…');
+  return checkpoint(current, [], true);
 }

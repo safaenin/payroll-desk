@@ -1,3 +1,4 @@
+import { salaryShares, type SalaryBrandAssignment, type SalaryBrandShare } from './brandPayroll';
 import type { Business } from './expenses';
 import { PAYROLL_ROLE_INCLUSIONS } from './config/payroll';
 import { recovered, recoveriesFor, type Advance, type Recovery } from './advances';
@@ -13,6 +14,7 @@ export type Rate = {
   divisor?: number;
 };
 export type Employee = {
+  brandHistory?: SalaryBrandAssignment[];
   manualPayroll?: boolean;
   code: string;
   name: string;
@@ -41,6 +43,7 @@ export type Adjustment = {
   note: string;
 };
 export type Line = {
+  brandAllocations?: SalaryBrandShare[];
   code: string;
   name: string;
   role: string;
@@ -218,6 +221,8 @@ export function calculate(state: State, month: string): Line[] {
           segments.add(`${rate.from}: ${rateLabel(rate)}/day · ${rate.role}`);
         }
         if (row.status === 'Pending') issues.push('Pending attendance');
+        if (row.status === 'F' && row.payable !== 0)
+          issues.push('Failed attendance must be unpaid');
         if (!['P', 'HD', 'A', 'WO', 'F', 'L', 'A-R', 'Pending'].includes(row.status))
           issues.push(`Unmapped status ${row.status}`);
       }
@@ -374,7 +379,13 @@ export function approve(state: State, month: string): State {
       ...state.runs,
       {
         month,
-        lines,
+        lines: lines.map((line) => ({
+          ...line,
+          brandAllocations: salaryShares(
+            state.employees.find((e) => e.code === line.code),
+            month,
+          ),
+        })),
         approvedAt: new Date().toISOString(),
         due: dueDate(month),
         sourceRevision: state.revision,
