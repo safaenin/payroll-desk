@@ -126,6 +126,7 @@ export default function App() {
       () => localStorage.getItem('payroll-selected-month') || today().slice(0, 7),
     ),
     [search, setSearch] = useState(''),
+    [employeeRole, setEmployeeRole] = useState(''),
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
     [busy, setBusy] = useState(false),
@@ -301,8 +302,17 @@ export default function App() {
       `${COMPANY.exportPrefix}-payroll-${month}.csv`,
     );
   }
-  const filteredEmployees = state.employees.filter((e) =>
-    `${e.name} ${e.code}`.toLowerCase().includes(search.toLowerCase()),
+  const latestEmployeeRate = (employee: Employee) =>
+    [...employee.rates].sort((a, b) => b.from.localeCompare(a.from))[0];
+  const roleKey = (employee: Employee) =>
+    latestEmployeeRate(employee)?.role.trim() || '__not_set__';
+  const employeeRoles = [...new Set(state.employees.map(roleKey))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const filteredEmployees = state.employees.filter(
+    (e) =>
+      `${e.name} ${e.code}`.toLowerCase().includes(search.trim().toLowerCase()) &&
+      (!employeeRole || roleKey(e) === employeeRole),
   );
   if (restoring || sessionError)
     return (
@@ -766,7 +776,7 @@ export default function App() {
                   <Plus size={16} /> Add employee
                 </button>
               </div>
-              <div className="toolbar">
+              <div className="toolbar employee-filters">
                 <Search size={17} />
                 <input
                   aria-label="Search employees"
@@ -774,6 +784,38 @@ export default function App() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
+                <label className="employee-role-filter">
+                  Latest role
+                  <select
+                    aria-label="Filter employees by role"
+                    value={employeeRole}
+                    onChange={(e) => setEmployeeRole(e.target.value)}
+                  >
+                    <option value="">All roles</option>
+                    {employeeRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {role === '__not_set__' ? 'Role not set' : role}
+                      </option>
+                    ))}
+                    {employeeRole && !employeeRoles.includes(employeeRole) && (
+                      <option value={employeeRole}>{employeeRole} (no employees)</option>
+                    )}
+                  </select>
+                </label>
+                <span className="employee-filter-count">
+                  {filteredEmployees.length} of {state.employees.length}
+                </span>
+                {(search || employeeRole) && (
+                  <button
+                    className="secondary"
+                    onClick={() => {
+                      setSearch('');
+                      setEmployeeRole('');
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                )}
               </div>
               <div className="table-wrap">
                 <table>
@@ -789,7 +831,7 @@ export default function App() {
                   </thead>
                   <tbody>
                     {filteredEmployees.map((e) => {
-                      const r = [...e.rates].sort((a, b) => b.from.localeCompare(a.from))[0];
+                      const r = latestEmployeeRate(e);
                       return (
                         <tr key={e.code}>
                           <td>
@@ -854,8 +896,16 @@ export default function App() {
               </div>
               {!filteredEmployees.length && (
                 <Empty
-                  title="No employee profiles yet"
-                  text="Add a profile with the employee code used in your attendance report."
+                  title={
+                    state.employees.length
+                      ? 'No employees match these filters'
+                      : 'No employee profiles yet'
+                  }
+                  text={
+                    state.employees.length
+                      ? 'Try another role or clear the search and filters.'
+                      : 'Add a profile with the employee code used in your attendance report.'
+                  }
                 />
               )}
             </section>
