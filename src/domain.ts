@@ -156,16 +156,13 @@ export const key = (r: Attendance) => `${r.code}|${r.date}`;
 export const bonusRole = roleEarnsBonus;
 export const rateValue = (rate: Rate, calendarDays?: number) =>
   rate.monthlyMinor !== undefined && rate.divisor
-    ? rate.monthlyMinor /
-      (rate.cappedMonthly && calendarDays ? Math.min(rate.divisor, calendarDays) : rate.divisor)
+    ? rate.monthlyMinor / (calendarDays ? Math.min(rate.divisor, calendarDays) : rate.divisor)
     : rate.dailyMinor;
 export const rateLabel = (rate: Rate) =>
   rate.fixedMonthlyMinor !== undefined
     ? `${money(rate.fixedMonthlyMinor)}/month fixed`
     : rate.monthlyMinor !== undefined && rate.divisor
-      ? rate.cappedMonthly
-        ? `${money(rate.monthlyMinor)}/month cap · ${rate.divisor}-day basis (short months adjusted)`
-        : `${money(rate.monthlyMinor)} ÷ ${rate.divisor}`
+      ? `${money(rate.monthlyMinor)}/month cap · ${rate.divisor}-day basis (short months adjusted)`
       : money(rate.dailyMinor);
 export function dueDate(month: string) {
   const [y, m] = month.split('-').map(Number);
@@ -246,17 +243,20 @@ export function calculate(state: State, month: string): Line[] {
         rows.length < monthDates(month).filter((date) => employedOn(employee, date)).length
       )
         issues.push('Complete manual attendance for every day of this month');
-      const capped = monthRate?.cappedMonthly;
-      if (monthChanges.some((r) => r.cappedMonthly) || (capped && monthChanges.length))
-        issues.push('Capped monthly wage changes must start on the first day of a month.');
       let base = 0;
+      let monthlyEarnings = 0;
+      let monthlyUnits = 0;
       let eligible = true;
       const segments = new Set<string>();
       for (const row of fixed !== undefined ? [] : rows) {
         const rate = rates.find((r) => r.from <= row.date);
         if (!rate) issues.push(`Wage missing on ${row.date}`);
         else {
-          base += row.payable * rateValue(rate, monthDates(month).length);
+          const earnings = row.payable * rateValue(rate, monthDates(month).length);
+          if (rate.monthlyMinor !== undefined && rate.divisor) {
+            monthlyEarnings += earnings;
+            monthlyUnits += row.payable / Math.min(rate.divisor, monthDates(month).length);
+          } else base += earnings;
           eligible &&=
             rate.bonusEligible &&
             bonusRole(
@@ -266,7 +266,7 @@ export function calculate(state: State, month: string): Line[] {
             ) &&
             bonusRole(row.role, state.attendanceBonusExclusions, state.attendanceBonusExactMatch);
           segments.add(
-            `${rate.from}: ${rateLabel(rate)}${rate.cappedMonthly ? '' : '/day'} · ${rate.role}`,
+            `${rate.from}: ${rateLabel(rate)}${rate.monthlyMinor !== undefined ? '' : '/day'} · ${rate.role}`,
           );
         }
         if (row.status === 'Pending') issues.push('Pending attendance');
@@ -275,10 +275,14 @@ export function calculate(state: State, month: string): Line[] {
         if (!['P', 'HD', 'A', 'WO', 'F', 'L', 'A-R', 'Pending'].includes(row.status))
           issues.push(`Unmapped status ${row.status}`);
       }
-      if (capped && monthRate.monthlyMinor !== undefined) {
-        base = Math.min(base, monthRate.monthlyMinor);
+      if (monthlyUnits > 0) {
+        // A total of one salary-month is payable at most. When dated monthly
+        // rates differ, scale their earnings together, preserving their relative
+        // contributions instead of granting a separate full cap per rate.
+        const cappedEarnings = monthlyEarnings / Math.max(1, monthlyUnits);
+        base += cappedEarnings;
         segments.add(
-          `Monthly base capped at ${money(monthRate.monthlyMinor)}; divisor ${Math.min(monthRate.divisor ?? 30, monthDates(month).length)} for ${month}.`,
+          `Monthly salary cap applied across dated wages; ${monthlyUnits.toFixed(4)} salary-month units, base ${money(Math.round(cappedEarnings))}. Attendance counts are unchanged.`,
         );
       }
       const roleKinds = new Set(
@@ -507,7 +511,7 @@ export function approve(state: State, month: string, revisionReason?: string): S
         due: dueDate(month),
         sourceRevision: state.revision,
         rules:
-          'v2: FR_ imports or explicit manual payroll; payable days × dated wage; fixed monthly wages independent of attendance with no attendance bonus; 26+ full P days = ₹1,000 for eligible attendance-based staff.',
+          'v3: FR_ imports or explicit manual payroll; payable days × dated wage; all monthly attendance salaries capped at one salary-month with short-month divisors and proportional dated-rate contributions; fixed monthly wages independent of attendance with no attendance bonus; 26+ full P days = ₹1,000 for eligible attendance-based staff.',
       },
     ],
   };

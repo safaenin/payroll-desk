@@ -2223,7 +2223,9 @@ function EmployeeForm({
           <span>
             <strong>
               {rateLabel(r)}
-              {r.fixedMonthlyMinor === undefined && !r.cappedMonthly ? '/day' : ''} · {r.role}
+              {r.fixedMonthlyMinor === undefined && r.monthlyMinor === undefined
+                ? '/day'
+                : ''} · {r.role}
             </strong>
             <small>
               Effective {r.from} · Bonus{' '}
@@ -2246,11 +2248,9 @@ function EmployeeForm({
               setRateMode(
                 r.fixedMonthlyMinor !== undefined
                   ? 'fixed'
-                  : r.cappedMonthly
-                    ? 'capped'
-                    : r.monthlyMinor !== undefined
-                      ? 'monthly'
-                      : 'daily',
+                  : r.monthlyMinor !== undefined
+                    ? 'monthly'
+                    : 'daily',
               );
               setCorrectionReason('');
               setRateError('');
@@ -2327,8 +2327,7 @@ function EmployeeForm({
             Rate calculation
             <select value={rateMode} onChange={(e) => setRateMode(e.target.value)}>
               <option value="daily">Daily wage</option>
-              <option value="monthly">Monthly base ÷ days</option>
-              <option value="capped">Capped monthly — attendance based</option>
+              <option value="monthly">Monthly salary — attendance based, capped</option>
               <option value="fixed">Fixed monthly — regardless of attendance</option>
             </select>
           </label>
@@ -2346,7 +2345,7 @@ function EmployeeForm({
             </label>
           )}
         </div>
-        {rateMode === 'capped' && (
+        {(rateMode === 'monthly' || rateMode === 'capped') && (
           <p className="employee-status-note">
             Base pay = monthly amount × payable days ÷ the smaller of the divisor or calendar days,
             capped at the monthly amount. A 30-day basis pays the full amount for 30+ payable days
@@ -2388,14 +2387,10 @@ function EmployeeForm({
               return;
             }
             if (
-              (rateMode === 'fixed' ||
-                rateMode === 'capped' ||
-                rates.some((r) => r.fixedMonthlyMinor !== undefined || r.cappedMonthly)) &&
+              (rateMode === 'fixed' || rates.some((r) => r.fixedMonthlyMinor !== undefined)) &&
               !date.endsWith('-01')
             ) {
-              setRateError(
-                'Fixed or capped monthly salary changes must start on the first day of a month.',
-              );
+              setRateError('Fixed monthly salary changes must start on the first day of a month.');
               return;
             }
             if (!editingRate && rates.some((r) => r.from === date)) {
@@ -2420,7 +2415,7 @@ function EmployeeForm({
               ...(rateMode === 'monthly' || rateMode === 'capped'
                 ? { monthlyMinor: amount, divisor }
                 : {}),
-              ...(rateMode === 'capped' ? { cappedMonthly: true } : {}),
+              ...(rateMode === 'monthly' || rateMode === 'capped' ? { cappedMonthly: true } : {}),
             };
             if (editingRate) {
               try {

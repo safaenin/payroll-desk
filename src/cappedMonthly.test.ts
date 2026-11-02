@@ -57,11 +57,63 @@ it('keeps other wage modes, adjustments and approved snapshots unchanged', () =>
   const state = fixture('2026-10', 31);
   state.employees[0].rates[0].cappedMonthly = false;
   const approved = approve(state, '2026-10');
-  expect(approved.runs[0].lines[0].base).toBe(1860000);
+  // Simulate an immutable snapshot approved before monthly caps were introduced.
+  approved.runs[0].lines[0].base = 1860000;
+  approved.runs[0].lines[0].net = 1860000;
   approved.employees[0].rates[0].cappedMonthly = true;
   approved.adjustments['2026-10'] = [
     { code: 'LP1', performance: 10000, other: 0, deduction: 20000, note: 'test' },
   ];
   expect(calculate(approved, '2026-10')[0].net).toBe(1790000);
   expect(approved.runs[0].lines[0].base).toBe(1860000);
+});
+
+it('caps all existing 26-day monthly wages without requiring a role or a new flag', () => {
+  for (const days of [26, 27, 28, 31]) {
+    const state = fixture('2026-10', days);
+    state.employees[0].rates[0] = {
+      from: '2024-01-01',
+      role: 'FR_Packer',
+      dailyMinor: 1300000,
+      monthlyMinor: 1300000,
+      divisor: 26,
+      bonusEligible: true,
+    };
+    state.attendance.forEach((r) => (r.role = 'FR_Packer'));
+    const line = calculate(state, '2026-10')[0];
+    expect(line.base).toBe(1300000);
+    expect(line.attendanceBonus).toBe(100000);
+    expect(line.net).toBe(1400000);
+    expect(line.days).toBe(days);
+  }
+});
+it('keeps shorter attendance prorated and daily-only wages independent of monthly caps', () => {
+  const state = fixture('2026-10', 25);
+  state.employees[0].rates[0].monthlyMinor = 1300000;
+  state.employees[0].rates[0].divisor = 26;
+  expect(calculate(state, '2026-10')[0].base).toBe(1250000);
+  state.employees[0].rates[0] = {
+    from: '2024-01-01',
+    role: 'FR_Packer',
+    dailyMinor: 50000,
+    bonusEligible: false,
+  };
+  state.attendance.forEach((r) => {
+    r.payable = 1;
+    r.status = 'P';
+  });
+  expect(calculate(state, '2026-10')[0].base).toBe(1550000);
+});
+it('does not multiply the cap when a monthly wage changes mid-month', () => {
+  const state = fixture('2026-10', 31);
+  state.employees[0].rates[0].monthlyMinor = 1300000;
+  state.employees[0].rates[0].divisor = 26;
+  state.employees[0].rates.push({
+    ...state.employees[0].rates[0],
+    from: '2026-10-16',
+    monthlyMinor: 2000000,
+  });
+  const line = calculate(state, '2026-10')[0];
+  expect(line.base).toBe(Math.round((1300000 * 15 + 2000000 * 16) / 31));
+  expect(line.issues).toEqual([]);
 });
