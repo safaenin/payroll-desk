@@ -776,46 +776,75 @@ export default function App() {
                   <Plus size={16} /> Add employee
                 </button>
               </div>
-              <div className="toolbar employee-filters">
-                <Search size={17} />
-                <input
-                  aria-label="Search employees"
-                  placeholder="Search by name or employee code"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-                <label className="employee-role-filter">
-                  Latest role
-                  <select
-                    aria-label="Filter employees by role"
-                    value={employeeRole}
-                    onChange={(e) => setEmployeeRole(e.target.value)}
-                  >
-                    <option value="">All roles</option>
-                    {employeeRoles.map((role) => (
-                      <option key={role} value={role}>
-                        {role === '__not_set__' ? 'Role not set' : role}
-                      </option>
-                    ))}
-                    {employeeRole && !employeeRoles.includes(employeeRole) && (
-                      <option value={employeeRole}>{employeeRole} (no employees)</option>
-                    )}
-                  </select>
-                </label>
-                <span className="employee-filter-count">
-                  {filteredEmployees.length} of {state.employees.length}
-                </span>
-                {(search || employeeRole) && (
+              <div
+                className="employee-directory-filters"
+                role="search"
+                aria-label="Employee directory filters"
+              >
+                <div className="employee-filter-fields">
+                  <label className="employee-search-field">
+                    <span>Search employees</span>
+                    <div className="employee-search-control">
+                      <Search size={17} aria-hidden="true" />
+                      <input
+                        aria-label="Search employees"
+                        placeholder="Name or employee code"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                      {search && (
+                        <button
+                          type="button"
+                          aria-label="Clear employee search"
+                          onClick={() => setSearch('')}
+                        >
+                          <X size={15} />
+                        </button>
+                      )}
+                    </div>
+                  </label>
+                  <label className="employee-role-field">
+                    <span>Latest role</span>
+                    <select
+                      aria-label="Filter employees by role"
+                      value={employeeRole}
+                      onChange={(e) => setEmployeeRole(e.target.value)}
+                    >
+                      <option value="">All roles</option>
+                      {employeeRoles.map((role) => (
+                        <option key={role} value={role}>
+                          {role === '__not_set__' ? 'Role not set' : role}
+                        </option>
+                      ))}
+                      {employeeRole && !employeeRoles.includes(employeeRole) && (
+                        <option value={employeeRole}>{employeeRole} (no employees)</option>
+                      )}
+                    </select>
+                  </label>
+                </div>
+                <div className="employee-filter-summary">
+                  <p aria-live="polite">
+                    <strong>{filteredEmployees.length}</strong>
+                    {search || employeeRole
+                      ? ` of ${state.employees.length} employees`
+                      : ' employees'}
+                    <span>
+                      {search || employeeRole ? ' match your filters' : ' in your directory'}
+                    </span>
+                  </p>
                   <button
-                    className="secondary"
+                    type="button"
+                    className="employee-reset-filters"
+                    disabled={!search && !employeeRole}
                     onClick={() => {
                       setSearch('');
                       setEmployeeRole('');
                     }}
                   >
+                    <X size={14} aria-hidden="true" />
                     Clear filters
                   </button>
-                )}
+                </div>
               </div>
               <div className="table-wrap">
                 <table>
