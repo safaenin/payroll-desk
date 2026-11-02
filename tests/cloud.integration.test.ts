@@ -1,3 +1,4 @@
+import { markInactive, reactivateEmployee } from '../src/employment';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
@@ -107,6 +108,39 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('cloud payroll lifecycle',
     expect(state.runs[0].history![0]).toEqual(payrollVersion(original));
     expect(state.payments).toEqual(paid);
     await expect(saveCloud(stale, stale)).rejects.toThrow('Another session');
+
+    const beforeExit = structuredClone(state);
+    const inactive = markInactive(
+      state.employees.find((e) => e.code === 'DEMO001')!,
+      '2026-10-15',
+      'Contract ended',
+    );
+    await saveCloud(state, {
+      ...state,
+      employees: state.employees.map((e) => (e.code === inactive.code ? inactive : e)),
+    });
+    state = await loadCloud();
+    expect(state.employees.find((e) => e.code === 'DEMO001')!.active).toBe(false);
+    expect(state.employees.find((e) => e.code === 'DEMO001')!.exits?.[0].reason).toBe(
+      'Contract ended',
+    );
+    expect(state.runs).toEqual(beforeExit.runs);
+    expect(state.payments).toEqual(beforeExit.payments);
+    expect(state.attendance).toEqual(beforeExit.attendance);
+    expect(state.advances).toEqual(beforeExit.advances);
+    const rejoined = reactivateEmployee(
+      state.employees.find((e) => e.code === 'DEMO001')!,
+      '2026-11-01',
+      'Rejoined',
+    );
+    await saveCloud(state, {
+      ...state,
+      employees: state.employees.map((e) => (e.code === rejoined.code ? rejoined : e)),
+    });
+    state = await loadCloud();
+    expect(state.employees.find((e) => e.code === 'DEMO001')!.exits?.[0].rejoinedOn).toBe(
+      '2026-11-01',
+    );
 
     // Reproduce the zero-document cleanup path using real Firestore rules.
     const otherEmployees = state.employees.filter((e) => e.code !== 'DEMO001');

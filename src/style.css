@@ -2544,3 +2544,133 @@ code {
     display: none;
   }
 }
+
+.employee-filter-fields {
+  grid-template-columns: minmax(180px, 1fr) minmax(170px, 250px) minmax(130px, 170px);
+}
+.employee-status-form {
+  display: grid;
+  gap: 18px;
+}
+.employee-status-identity {
+  display: grid;
+  gap: 5px;
+  padding: 14px 16px;
+  background: #f3f7f4;
+  border-radius: 9px;
+}
+.employee-status-identity span,
+.employee-status-help {
+  font-size: 13px;
+  color: #687c70;
+}
+.employee-status-help {
+  margin: 0;
+  line-height: 1.6;
+}
+.employee-status-form label {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.employee-status-form textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #dce4df;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+}
+.employee-status-form small {
+  font-weight: 400;
+  color: #687c70;
+  line-height: 1.5;
+}
+.employee-status-note {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #63766a;
+  background: #f7f9f7;
+  padding: 14px;
+  border-radius: 8px;
+}
+.employee-status-balances {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #eadbbd;
+  border-radius: 8px;
+  background: #fffaf0;
+  font-size: 12px;
+  color: #755f34;
+  line-height: 1.5;
+}
+.employee-status-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+.employee-exit-history {
+  margin: 16px 0;
+  font-size: 13px;
+}
+.employee-exit-history summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.employee-exit-history > div {
+  padding: 14px 0;
+  border-bottom: 1px solid #e5ebe6;
+}
+@media (max-width: 900px) {
+  .employee-filter-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+  .employee-search-field {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 600px) {
+  .employee-filter-fields {
+    grid-template-columns: 1fr;
+  }
+}
+.employee-directory-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+}
+.employee-directory-actions button {
+  white-space: nowrap;
+}
+.employee-delete-zone {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid #eadfda;
+}
+.employee-delete-zone p {
+  font-size: 12px;
+  color: #7d7069;
+}
+.modal .employee-status-form {
+  gap: 16px;
+}
+.modal .employee-status-form label {
+  display: grid;
+  margin: 0;
+}
+.modal .employee-status-form input,
+.modal .employee-status-form textarea {
+  margin-top: 0;
+}
+.modal .employee-status-form p {
+  margin: 0;
+}
+.employee-status-actions {
+  position: sticky;
+  bottom: -28px;
+  padding: 12px 0;
+  background: white;
+}

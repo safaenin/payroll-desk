@@ -1,3 +1,4 @@
+import EmployeeStatusForm from './EmployeeStatusForm';
 import BonusRoleSettings from './BonusRoleSettings';
 import { correctWage } from './wages';
 import PayrollRevision from './PayrollRevision';
@@ -119,6 +120,8 @@ function csvDownload(rows: (string | number)[][], name: string) {
 }
 export default function App() {
   const [voidId, setVoidId] = useState('');
+  const [statusEmployee, setStatusEmployee] = useState<Employee | null>(null);
+  const [employeeStatus, setEmployeeStatus] = useState('active');
   const [page, setPage] = useState<Page>('Overview'),
     [state, setState] = useState<State>(emptyState),
     [mode, setMode] = useState<'signed-out' | 'cloud'>('signed-out');
@@ -312,7 +315,8 @@ export default function App() {
   const filteredEmployees = state.employees.filter(
     (e) =>
       `${e.name} ${e.code}`.toLowerCase().includes(search.trim().toLowerCase()) &&
-      (!employeeRole || roleKey(e) === employeeRole),
+      (!employeeRole || roleKey(e) === employeeRole) &&
+      (employeeStatus === 'all' || e.active === (employeeStatus === 'active')),
   );
   if (restoring || sessionError)
     return (
@@ -709,7 +713,7 @@ export default function App() {
                                 <td className="numeric">{r ? rateLabel(r) : 'Missing wage'}</td>
                                 <td>
                                   <Badge tone={e.active ? 'green' : 'gray'}>
-                                    {e.active ? 'Active' : 'Archived'}
+                                    {e.active ? 'Active' : 'Inactive'}
                                   </Badge>
                                 </td>
                               </tr>
@@ -821,6 +825,18 @@ export default function App() {
                       )}
                     </select>
                   </label>
+                  <label className="employee-role-field">
+                    <span>Status</span>
+                    <select
+                      aria-label="Filter employees by status"
+                      value={employeeStatus}
+                      onChange={(e) => setEmployeeStatus(e.target.value)}
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                      <option value="all">All employees</option>
+                    </select>
+                  </label>
                 </div>
                 <div className="employee-filter-summary">
                   <p aria-live="polite">
@@ -829,16 +845,19 @@ export default function App() {
                       ? ` of ${state.employees.length} employees`
                       : ' employees'}
                     <span>
-                      {search || employeeRole ? ' match your filters' : ' in your directory'}
+                      {search || employeeRole || employeeStatus !== 'all'
+                        ? ' match your filters'
+                        : ' in your directory'}
                     </span>
                   </p>
                   <button
                     type="button"
                     className="employee-reset-filters"
-                    disabled={!search && !employeeRole}
+                    disabled={!search && !employeeRole && employeeStatus === 'active'}
                     onClick={() => {
                       setSearch('');
                       setEmployeeRole('');
+                      setEmployeeStatus('active');
                     }}
                   >
                     <X size={14} aria-hidden="true" />
@@ -865,7 +884,16 @@ export default function App() {
                         <tr key={e.code}>
                           <td>
                             <Person name={e.name} code={e.code} />
-                            {!e.active && <Badge tone="gray">Archived</Badge>}
+                            {!e.active && (
+                              <>
+                                <Badge tone="gray">Inactive</Badge>
+                                <small>
+                                  {e.exits?.at(-1)?.lastWorkingDay
+                                    ? `Left ${e.exits.at(-1)!.lastWorkingDay}`
+                                    : 'Leaving date not recorded'}
+                                </small>
+                              </>
+                            )}
                           </td>
                           <td>
                             {r?.role ?? 'Not set'}
@@ -903,19 +931,18 @@ export default function App() {
                             /4 complete
                           </td>
                           <td>
-                            <button className="text-button" onClick={() => setEmployee(e)}>
-                              Edit <ChevronRight size={14} />
-                            </button>
-                            <button
-                              className="text-button danger"
-                              disabled={busy}
-                              onClick={() => {
-                                setDeleteCode('');
-                                setDeleteEmployee(e);
-                              }}
-                            >
-                              Delete employee
-                            </button>
+                            <div className="employee-directory-actions">
+                              <button className="text-button" onClick={() => setEmployee(e)}>
+                                Edit <ChevronRight size={14} />
+                              </button>
+                              <button
+                                className="text-button"
+                                disabled={busy}
+                                onClick={() => setStatusEmployee(e)}
+                              >
+                                {e.active ? 'Mark inactive' : 'Reactivate'}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1524,6 +1551,30 @@ export default function App() {
           </footer>
         </main>
       </div>
+      {statusEmployee && (
+        <Modal
+          title={statusEmployee.active ? 'Mark employee inactive' : 'Reactivate employee'}
+          onClose={() => setStatusEmployee(null)}
+        >
+          <EmployeeStatusForm
+            employee={statusEmployee}
+            state={state}
+            busy={busy}
+            onSave={async (updated) => {
+              await commit(
+                {
+                  ...state,
+                  employees: state.employees.map((e) => (e.code === updated.code ? updated : e)),
+                },
+                updated.active
+                  ? 'Employee reactivated.'
+                  : 'Employee marked inactive. All records retained.',
+              );
+              setStatusEmployee(null);
+            }}
+          />
+        </Modal>
+      )}
       {deleteEmployee && (
         <Modal
           title="Delete employee and all records?"
@@ -1598,6 +1649,15 @@ export default function App() {
         >
           <EmployeeForm
             employee={employee}
+            onDelete={
+              employee
+                ? () => {
+                    setDeleteCode('');
+                    setDeleteEmployee(employee);
+                    setEmployee(undefined);
+                  }
+                : undefined
+            }
             bonusExclusions={state.attendanceBonusExclusions}
             bonusExact={state.attendanceBonusExactMatch}
             brands={state.business?.brands ?? []}
@@ -2016,6 +2076,7 @@ function Modal({
 }
 function EmployeeForm({
   employee,
+  onDelete,
   bonusExclusions,
   bonusExact,
   brands,
@@ -2023,6 +2084,7 @@ function EmployeeForm({
   onSave,
 }: {
   employee: Employee | null;
+  onDelete?: () => void;
   bonusExclusions?: string[];
   bonusExact?: boolean;
   brands: Brand[];
@@ -2060,7 +2122,8 @@ function EmployeeForm({
     onSave({
       code: String(f.get('code')).trim(),
       name: String(f.get('name')).trim(),
-      active: f.get('active') === 'on',
+      active: employee?.active ?? true,
+      ...(employee?.exits ? { exits: employee.exits } : {}),
       manualPayroll: f.get('manualPayroll') === 'on',
       aadhaar: f.get('aadhaar') === 'on',
       bank: f.get('bank') === 'on',
@@ -2091,10 +2154,32 @@ function EmployeeForm({
           <input name="name" required defaultValue={employee?.name} />
         </label>
       </div>
-      <label className="checkbox">
-        <input type="checkbox" name="active" defaultChecked={employee?.active ?? true} />
-        Active employee
-      </label>
+      {employee && (
+        <div className="employee-status-note">
+          Status: <strong>{employee.active ? 'Active' : 'Inactive'}</strong>. Use the directory’s
+          Mark inactive or Reactivate action to record employment changes.
+        </div>
+      )}
+      {!!employee?.exits?.length && (
+        <details className="employee-exit-history">
+          <summary>Employment history ({employee.exits.length})</summary>
+          {employee.exits.map((exit, i) => (
+            <div key={i}>
+              <strong>Last working day: {exit.lastWorkingDay || 'Not recorded'}</strong>
+              <p>{exit.reason}</p>
+              {exit.finalSalaryMinor !== undefined && (
+                <p>Manual final month salary: {money(exit.finalSalaryMinor)}</p>
+              )}
+              <small>Recorded {exit.recordedAt.slice(0, 10)}</small>
+              {exit.rejoinedOn && (
+                <p>
+                  Rejoined {exit.rejoinedOn} · {exit.reactivationReason}
+                </p>
+              )}
+            </div>
+          ))}
+        </details>
+      )}
       <label className="checkbox">
         <input
           type="checkbox"
@@ -2343,6 +2428,14 @@ function EmployeeForm({
       <button className="primary" disabled={busy}>
         Save employee
       </button>
+      {onDelete && (
+        <div className="employee-delete-zone">
+          <p>Need to retain this employee’s history? Use Mark inactive in the directory.</p>
+          <button type="button" className="text-button danger" disabled={busy} onClick={onDelete}>
+            Delete employee and all records…
+          </button>
+        </div>
+      )}
     </form>
   );
 }

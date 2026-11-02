@@ -1,3 +1,4 @@
+import { employedOn, employedInMonth, type EmployeeExit } from './employment';
 import { roleEarnsBonus, DEFAULT_BONUS_EXCLUSIONS } from './bonusRoles';
 import type { WageCorrection } from './wages';
 import { salaryShares, type SalaryBrandAssignment, type SalaryBrandShare } from './brandPayroll';
@@ -16,6 +17,7 @@ export type Rate = {
   divisor?: number;
 };
 export type Employee = {
+  exits?: EmployeeExit[];
   wageCorrections?: WageCorrection[];
   brandHistory?: SalaryBrandAssignment[];
   manualPayroll?: boolean;
@@ -178,6 +180,7 @@ export function promotionReviewKey(state: State, month: string, code: string): s
     code,
     attendanceBonusExactMatch: state.attendanceBonusExactMatch ?? false,
     attendanceBonusExclusions: state.attendanceBonusExclusions ?? DEFAULT_BONUS_EXCLUSIONS,
+    exits: employee?.exits ?? [],
     manualPayroll: employee?.manualPayroll ?? false,
     rates: [...(employee?.rates ?? [])].sort((a, b) => a.from.localeCompare(b.from)),
     attendance: state.attendance
@@ -191,15 +194,12 @@ export function calculate(state: State, month: string): Line[] {
   const records = state.attendance.filter(
     (a) =>
       a.date.startsWith(month) &&
-      !state.employees.some(
-        (e) =>
-          e.code === a.code && !e.active && e.rates.some((r) => r.fixedMonthlyMinor !== undefined),
-      ) &&
+      !state.employees.some((e) => e.code === a.code && !employedOn(e, a.date)) &&
       (included(a.role) || state.employees.some((e) => e.code === a.code && e.manualPayroll)),
   );
   const fixedEmployees = state.employees.filter(
     (e) =>
-      e.active &&
+      employedInMonth(e, month) &&
       [...e.rates]
         .sort((a, b) => b.from.localeCompare(a.from))
         .find((r) => r.from <= monthDates(month).at(-1)!)?.fixedMonthlyMinor !== undefined,
@@ -211,7 +211,9 @@ export function calculate(state: State, month: string): Line[] {
       ...state.employees
         .filter(
           (e) =>
-            e.active && e.manualPayroll && e.rates.some((r) => r.from <= monthDates(month).at(-1)!),
+            employedInMonth(e, month) &&
+            e.manualPayroll &&
+            e.rates.some((r) => r.from <= monthDates(month).at(-1)!),
         )
         .map((e) => e.code),
     ]),
@@ -233,7 +235,11 @@ export function calculate(state: State, month: string): Line[] {
         (fixed !== undefined && monthChanges.length)
       )
         issues.push('Fixed monthly wage changes must start on the first day of a month');
-      if (fixed === undefined && employee?.manualPayroll && rows.length < monthDates(month).length)
+      if (
+        fixed === undefined &&
+        employee?.manualPayroll &&
+        rows.length < monthDates(month).filter((date) => employedOn(employee, date)).length
+      )
         issues.push('Complete manual attendance for every day of this month');
       let base = 0;
       let eligible = true;
@@ -273,11 +279,22 @@ export function calculate(state: State, month: string): Line[] {
         issues.push('Review attendance-bonus eligibility across promotion');
       const fullDays = rows.filter((r) => r.status === 'P' && r.payable === 1).length;
       if (fixed !== undefined) {
-        base = fixed;
-        eligible = false;
-        segments.add(
-          `${monthRate!.from}: ${money(fixed)}/month fixed — attendance does not reduce salary`,
+        const exits = (employee?.exits ?? []).filter((exit) =>
+          exit.lastWorkingDay.startsWith(month),
         );
+        const finalExit = exits.at(-1);
+        if (finalExit && finalExit.finalSalaryMinor === undefined)
+          issues.push(
+            'Enter a manual final salary in the employee exit record before approving fixed pay.',
+          );
+        base = finalExit?.finalSalaryMinor ?? fixed;
+        eligible = false;
+        if (finalExit)
+          segments.add(`Manual final salary through ${finalExit.lastWorkingDay}: ${money(base)}`);
+        if (!finalExit)
+          segments.add(
+            `${monthRate!.from}: ${money(fixed)}/month fixed — attendance does not reduce salary`,
+          );
       }
       const attendanceBonus = eligible && fullDays >= 26 ? 100000 : 0;
       if (

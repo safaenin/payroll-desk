@@ -1,3 +1,4 @@
+import { employedOn, employedInMonth } from './employment';
 import { useEffect, useRef, useState } from 'react';
 import { mergeAttendance, monthDates, type State, type Attendance } from './domain';
 export const manualStatusLabels: Record<string, string> = {
@@ -20,7 +21,15 @@ export function manualAttendanceStatuses(
   );
   const locked = state.runs.some((run) => run.month === month);
   return Object.fromEntries(
-    monthDates(month).map((date) => [date, recorded.get(date) ?? (locked ? '' : 'P')]),
+    monthDates(month).map((date) => [
+      date,
+      recorded.get(date) ??
+        (locked
+          ? ''
+          : state.employees.some((e) => e.code === code && !employedOn(e, date))
+            ? 'A'
+            : 'P'),
+    ]),
   );
 }
 export function manualAttendanceOverview(
@@ -121,7 +130,7 @@ export default function ManualAttendance({
           >
             <option value="">Select employee</option>
             {state.employees
-              .filter((e) => e.active && e.manualPayroll)
+              .filter((e) => employedInMonth(e, month) && e.manualPayroll)
               .map((e) => (
                 <option key={e.code} value={e.code}>
                   {e.name} · {e.code}
