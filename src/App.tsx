@@ -34,6 +34,7 @@ import {
   approve,
   bonusRole,
   promotionReviewKey,
+  promotionReviewMatches,
   calculate,
   dueDate,
   emptyState,
@@ -1754,10 +1755,10 @@ export default function App() {
                 <input
                   type="checkbox"
                   name="promotionReview"
-                  defaultChecked={
-                    state.adjustments[month]?.find((a) => a.code === adjustCode)
-                      ?.promotionReview === promotionReviewKey(state, month, adjustCode)
-                  }
+                  defaultChecked={promotionReviewMatches(
+                    state.adjustments[month]?.find((a) => a.code === adjustCode)?.promotionReview,
+                    promotionReviewKey(state, month, adjustCode),
+                  )}
                 />
                 I reviewed this promotion and confirm no attendance bonus for this month because it
                 includes a bonus-excluded role. Enter the review reason below.

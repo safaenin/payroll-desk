@@ -240,6 +240,19 @@ it('requires a reason for promotion review and invalidates it when attendance or
   s.adjustments['2026-09'][0].note = 'Promoted on 16 September; excluded for this month.';
   expect(calculate(s, '2026-09')[0]).toMatchObject({ attendanceBonus: 0, issues: [] });
   expect(approve(s, '2026-09').runs[0].lines[0].segments.join(' ')).toContain('Promotion reviewed');
+  // Simulate Firestore returning map fields in a different order after reload.
+  s.employees[0].rates = s.employees[0].rates.map(
+    (rate) => Object.fromEntries(Object.entries(rate).reverse()) as typeof rate,
+  );
+  expect(calculate(s, '2026-09')[0].issues).toEqual([]);
+  const { promotionReviewMatches } = await import('./domain');
+  expect(
+    promotionReviewMatches(
+      s.adjustments['2026-09'][0].promotionReview,
+      promotionReviewKey(s, '2026-09', 'E1'),
+    ),
+  ).toBe(true);
+  expect(promotionReviewMatches('invalid', promotionReviewKey(s, '2026-09', 'E1'))).toBe(false);
   s.attendance[0].payable = 0;
   expect(calculate(s, '2026-09')[0].issues).toContain(warning);
   s.attendance[0].payable = 1;

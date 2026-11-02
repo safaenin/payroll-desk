@@ -175,6 +175,27 @@ export function monthDates(month: string) {
     (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`,
   );
 }
+// Firestore maps do not preserve object field order. Compare review content,
+// including previously saved keys, independently of serialization order.
+function canonicalReview(value: unknown): string {
+  return JSON.stringify(value, (_key, item) =>
+    item && typeof item === 'object' && !Array.isArray(item)
+      ? Object.fromEntries(
+          Object.keys(item)
+            .sort()
+            .map((key) => [key, item[key]]),
+        )
+      : item,
+  );
+}
+export function promotionReviewMatches(saved: string | undefined, current: string): boolean {
+  if (!saved) return false;
+  try {
+    return canonicalReview(JSON.parse(saved)) === canonicalReview(JSON.parse(current));
+  } catch {
+    return false;
+  }
+}
 export function promotionReviewKey(state: State, month: string, code: string): string {
   const employee = state.employees.find((e) => e.code === code);
   return JSON.stringify({
@@ -294,7 +315,10 @@ export function calculate(state: State, month: string): Line[] {
       if (
         fixed === undefined &&
         roleKinds.size > 1 &&
-        !(adj?.note.trim() && adj.promotionReview === promotionReviewKey(state, month, code))
+        !(
+          adj?.note.trim() &&
+          promotionReviewMatches(adj.promotionReview, promotionReviewKey(state, month, code))
+        )
       )
         issues.push('Review attendance-bonus eligibility across promotion');
       const fullDays = rows.filter((r) => r.status === 'P' && r.payable === 1).length;
@@ -320,8 +344,8 @@ export function calculate(state: State, month: string): Line[] {
       if (
         fixed === undefined &&
         roleKinds.size > 1 &&
-        adj?.promotionReview === promotionReviewKey(state, month, code) &&
-        adj.note.trim()
+        promotionReviewMatches(adj?.promotionReview, promotionReviewKey(state, month, code)) &&
+        adj?.note.trim()
       )
         segments.add('Promotion reviewed: attendance bonus excluded. ' + adj.note.trim());
       const performance = adj?.performance ?? 0,
