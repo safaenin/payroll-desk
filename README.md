@@ -330,3 +330,5 @@ Payroll versions are stored within the monthly Firestore document; the existing 
 To fix an existing wage typo, open Employees → Edit → Wage history → Correct entry. The effective date stays fixed; change the amount, role, calculation or eligibility and enter a reason. Click Apply wage correction, then Save employee. Before/after values are retained in Wage correction history. Existing approved payroll amounts remain unchanged until Payroll → Review revision is approved. For a genuine promotion or future raise, continue using Add dated wage instead.
 
 Owner confirmation, 2 November 2026: the latest Firestore rules including payroll revision history are published. Historical salary import is explicitly skipped. This confirmation does not represent a live revision write by the agent.
+
+The `test:rules` command also exercises production cloud save/load with a 35-employee fictional payroll, advances, payments and two revisions in an isolated emulator project. The integration test skips during ordinary `npm test` runs without the emulator.
