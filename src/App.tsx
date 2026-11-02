@@ -1,3 +1,4 @@
+import EmployeeDetail from './EmployeeDetail';
 import EmployeeStatusForm from './EmployeeStatusForm';
 import BonusRoleSettings from './BonusRoleSettings';
 import { correctWage } from './wages';
@@ -142,6 +143,7 @@ export default function App() {
     [adjustCode, setAdjustCode] = useState(''),
     [payCode, setPayCode] = useState(''),
     [slip, setSlip] = useState<Line | null>(null);
+  const [detailCode, setDetailCode] = useState('');
   const [preview, setPreview] = useState<{ rows: Attendance[]; name: string } | null>(null),
     [driveReady, setDriveReady] = useState(false);
   const [deleteEmployee, setDeleteEmployee] = useState<Employee | null>(null),
@@ -721,7 +723,11 @@ export default function App() {
                             return (
                               <tr key={e.code}>
                                 <td>
-                                  <Person name={e.name} code={e.code} />
+                                  <Person
+                                    name={e.name}
+                                    code={e.code}
+                                    onOpen={() => setDetailCode(e.code)}
+                                  />
                                 </td>
                                 <td>{r?.role ?? 'Not set'}</td>
                                 <td className="numeric">{r ? rateLabel(r) : 'Missing wage'}</td>
@@ -897,7 +903,11 @@ export default function App() {
                       return (
                         <tr key={e.code}>
                           <td>
-                            <Person name={e.name} code={e.code} />
+                            <Person
+                              name={e.name}
+                              code={e.code}
+                              onOpen={() => setDetailCode(e.code)}
+                            />
                             {!e.active && (
                               <>
                                 <Badge tone="gray">Inactive</Badge>
@@ -1665,6 +1675,14 @@ export default function App() {
           </form>
         </Modal>
       )}
+      {detailCode && state.employees.find((e) => e.code === detailCode) && (
+        <Modal title="Employee details" onClose={() => setDetailCode('')}>
+          <EmployeeDetail
+            employee={state.employees.find((e) => e.code === detailCode)!}
+            state={state}
+          />
+        </Modal>
+      )}
       {employee !== undefined && (
         <Modal
           title={employee ? 'Edit employee & wage history' : 'Add employee'}
@@ -2023,16 +2041,27 @@ function Badge({
 }) {
   return <span className={`badge ${tone}`}>{children}</span>;
 }
-function Person({ name, code }: { name: string; code: string }) {
+function Person({ name, code, onOpen }: { name: string; code: string; onOpen?: () => void }) {
+  const initials = name
+    .split(' ')
+    .slice(0, 2)
+    .map((s) => s[0])
+    .join('');
   return (
     <div className="person">
-      <span className="person-avatar">
-        {name
-          .split(' ')
-          .slice(0, 2)
-          .map((s) => s[0])
-          .join('')}
-      </span>
+      {onOpen ? (
+        <button
+          type="button"
+          className="person-avatar employee-avatar-button"
+          aria-label={`View details for ${name}`}
+          title="View employee details"
+          onClick={onOpen}
+        >
+          {initials}
+        </button>
+      ) : (
+        <span className="person-avatar">{initials}</span>
+      )}
       <span>
         <strong>{name}</strong>
         <small>{code}</small>
