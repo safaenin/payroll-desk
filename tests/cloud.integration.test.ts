@@ -43,7 +43,8 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('cloud payroll lifecycle',
   });
 
   it('reloads 35 employees, approved pay, installments, payments and exact revision history', async () => {
-    const { loadCloud, saveCloud } = await import('../src/storage');
+    const { loadCloud, saveCloud, startEmployeeDeletion, finishEmployeeDeletion } =
+      await import('../src/storage');
     const empty = await loadCloud();
     const input = saveAdvance(sampleState(), {
       id: 'advance-test',
@@ -102,5 +103,31 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('cloud payroll lifecycle',
     expect(state.runs[0].history![0]).toEqual(payrollVersion(original));
     expect(state.payments).toEqual(paid);
     await expect(saveCloud(stale, stale)).rejects.toThrow('Another session');
+
+    // Reproduce the zero-document cleanup path using real Firestore rules.
+    const otherEmployees = state.employees.filter((e) => e.code !== 'DEMO001');
+    const otherLines = state.runs[0].lines.filter((l) => l.code !== 'DEMO001');
+    await startEmployeeDeletion(state, 'DEMO001');
+    const pending = await loadCloud();
+    expect(pending.employeeDeletion?.code).toBe('DEMO001');
+    await expect(saveCloud(pending, pending)).rejects.toThrow('pending employee deletion');
+    await finishEmployeeDeletion(() => {});
+    const cleaned = await loadCloud();
+    expect(cleaned.employeeDeletion).toBeNull();
+    expect(cleaned.employees).toEqual(otherEmployees);
+    expect(cleaned.attendance).toHaveLength(1020);
+    expect(cleaned.attendance.some((a) => a.code === 'DEMO001')).toBe(false);
+    expect(cleaned.adjustments['2026-09'].some((a) => a.code === 'DEMO001')).toBe(false);
+    expect(cleaned.payments).toEqual([]);
+    expect(cleaned.advances).toEqual([]);
+    expect(cleaned.runs[0].lines).toEqual(otherLines);
+    expect(cleaned.runs[0].history).toHaveLength(2);
+    for (const version of cleaned.runs[0].history!) {
+      expect(version.lines).toHaveLength(34);
+      expect(version.lines.some((l) => l.code === 'DEMO001')).toBe(false);
+    }
+    await expect(saveCloud(cleaned, cleaned)).resolves.toMatchObject({
+      revision: cleaned.revision + 1,
+    });
   }, 30000);
 });
