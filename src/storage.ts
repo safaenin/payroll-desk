@@ -1,3 +1,4 @@
+import { commitCloudChanges } from './cloudTransaction';
 import { emptyBusiness, generateRecurring, type Brand } from './expenses';
 import { initializeApp } from 'firebase/app';
 import {
@@ -159,19 +160,7 @@ export async function saveCloud(previous: State, next: State): Promise<State> {
       );
   const root = `owners/${ownerUid()}`;
   try {
-    await runTransaction(db, async (tx) => {
-      const ref = doc(db!, root, 'meta/revision');
-      const metadata = (await tx.get(ref)).data();
-      if (metadata?.expenseDeletion)
-        throw new Error('Finish the pending expense deletion before saving changes.');
-      if (metadata?.employeeDeletion)
-        throw new Error('Finish the pending employee deletion before changing payroll records.');
-      const current = metadata?.value ?? 0;
-      if (current !== previous.revision)
-        throw new Error('Another session changed the records. Reload before saving.');
-      for (const [path, value] of changed) tx.set(doc(db!, root, path), value);
-      tx.set(ref, { value: current + 1 });
-    });
+    await commitCloudChanges(db, root, previous.revision, changed);
   } catch (error) {
     if (
       error &&

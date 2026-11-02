@@ -1,6 +1,6 @@
 # Payroll app plan
 
-Status: initial local implementation built; live cloud setup and remaining workflows are not complete.
+Status: core app implemented; final verification, historical migration and approved-record correction workflows remain incomplete.
 
 ## Confirmed requirements
 
@@ -97,7 +97,7 @@ Suggested data groups: organization settings, authorized members, employees, sal
 
 ## Current state
 
-The workspace was empty when inspected on October 24, 2026. A local React/TypeScript app is now implemented with demo mode, employee profiles, dated daily wages, attendance import and revision history, payroll approval snapshots, variable bonuses/deductions, payment recording, CSV export, printable payslips, and Firebase/Drive adapters. TypeScript/build checks and 20 tests pass. The supplied attendance report parses as 810 records, including 658 FR records across 38 employee profiles; repeating the import preserves 810 attendance records. Browser checks verified sample payroll approval and a partial payment. Live Firebase/Drive configuration and access-rule verification are still outstanding. See README.md for setup and remaining limitations, including salary-workbook migration and post-approval corrections. The full goal is not complete.
+As of 2 November 2026, the core app is implemented and Git is initialized. Demo mode is removed. The owner reported working Firebase persistence/session restoration and Drive connectivity. Documents use employees/{name-employeeCode}/; deletion is resumable and files go to Trash. Manual attendance, fixed monthly salaries, advances, promotion reviews, expenses and brand allocations are implemented. Local tests and builds pass, but these do not establish deployed authorization correctness or full live-cloud acceptance. See README.md for the current completion gaps. Historical source inspection below remains evidence of workbook content, not imported production payroll.
 
 ## Attendance report inspection — October 24, 2026
 

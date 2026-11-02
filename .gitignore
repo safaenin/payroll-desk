@@ -4,3 +4,6 @@ dist/
 !.env.example
 *.tsbuildinfo
 .DS_Store
+
+.firebase/
+*-debug.log

@@ -88,14 +88,17 @@ Advance records are stored in Firestore's `advances` collection under the owner.
 
 ## Verified and outstanding
 
-Verified locally: TypeScript compilation, production build, 30 automated tests, source attendance import (810 records; 658 FR records; 38 FR employee profiles), repeat-import idempotency, and browser checks of sample approval, partial payment, and a ₹4,000 advance scheduled in two ₹2,000 installments. Advance tests cover full/partial recovery, approval locking, remaining balances, rescheduling, duplicate prevention, insufficient salary, missing payroll, and old records without advance fields. Live cloud verification remains pending account configuration.
+Current audit (2 November 2026): React/TypeScript local app, owner sign-in, Firestore persistence, Google Drive document folders, monthly attendance imports, dated wages, manual attendance, fixed monthly salaries, bonuses/deductions, advances, payment tracking, branded payslips, employee deletion, expenses and brand salary allocation are implemented. Demo mode has been removed. The owner has confirmed live Firebase persistence, restored sign-in and Drive connection in this chat; this is user-reported evidence, not a new end-to-end cloud test.
 
-Still required before production use:
+Automated tests cover calculation, imports, advances, documents, deletion recovery, authentication session handling, expenses and salary allocation. They include 35 synthetic employee payroll approval and role changes under one code. Successful builds and unit tests do not prove deployed Firestore rules.
 
-- Configure and verify live Firestore authentication, access rules, reload persistence, concurrent-session behavior, and Google Drive uploads with the owner's account. No real cloud account has been connected yet; rules have not been emulator-tested.
-- Historical Salary workbook migration, employee alias mapping, and decisions for mixed-role attendance-bonus eligibility during promotions.
-- An explicit correction/adjustment workflow for approved payroll and payment mistakes. Approved data is currently locked; later attendance corrections preserve that snapshot but do not create a revised payroll automatically.
-- Additional user roles, statutory calculations, automatic bank transfers, and comprehensive accounting are outside this initial implementation. No tax or statutory deduction rules are assumed.
+Remaining verification/work:
+
+- Verify deployed Firestore authorization rules, concurrent-session behavior and complete cloud workflows; local emulator tests now cover unauthorized access, workspace isolation, payment void immutability, and the employee-deletion gate. Deployed rules still need verification.
+- Historical salary-workbook migration remains incomplete and needs employee mapping, month and effective-date decisions.
+- Approved earnings correction remains unimplemented; snapshots stay locked. Incorrect salary payments can be voided with a reason while preserving the original record.
+- Mixed-role attendance-bonus exclusion can now be explicitly reviewed with a reason in Payroll → Adjust. Changed attendance/wages invalidate the review.
+- Fixed monthly pay has no automatic partial-month proration. No statutory deductions or automatic bank transfers are assumed.
 
 ## Integration references
 
@@ -303,3 +306,17 @@ labels. The employee summary updates immediately; save to persist the changes.
 F is unpaid and does not count toward full-present-day bonuses. Excel imports accept
 both F and Failed, normalized to F, and require zero payable days for these rows.
 Approved payroll and attendance remain locked; fixed monthly wages are unaffected.
+
+### Correct an incorrectly recorded salary payment
+
+Publish the updated firestore.rules before using this workflow. In Payroll → Payment ledger, choose **Void incorrect payment**, review the employee and amount, and enter a reason. The original payment facts remain visible alongside the void timestamp and reason; payroll paid/outstanding values, CSV balances, and brand salary payment summaries exclude the voided amount. Record the correct payment separately if needed. This is a bookkeeping correction, not a bank transfer reversal, and does not change approved earnings or advance recoveries.
+
+### Local Firestore rules tests
+
+Run `npm run test:rules` with Java 21+ and Firebase CLI installed. The command starts Firestore on 127.0.0.1:8085 using demo-payroll-rules, runs seven authorization and transaction tests, and stops the emulator. The first run downloads the emulator. No live database is accessed or rules deployed. This targeted coverage is not a complete security audit.
+
+The emulator suite also executes the production save transaction: simultaneous saves from the same revision allow only one winner, failed writes roll back all changes, and pending deletion blocks normal saves. Approved payroll, import audit records and document links reject ordinary overwrites. The Node-based rules test runner requires Node 24 (for direct TypeScript imports).
+
+Browser verification on 2 November 2026: authenticated live workspace displayed 40 employees, a persisted approved payroll, matching payslip totals and separate deduction/recovery fields. The payment-void confirmation was opened and cancelled without modifying company records. This verifies read/display behavior, not a live correction write or Drive upload. Vitest was upgraded to 5.0.5; all 117 app tests and the production build pass. npm audit no longer reports critical advisories; 14 moderate/high dependency findings remain for focused review.
+
+Dependency follow-up: @grpc/grpc-js is overridden to 1.14.7 because Firebase 12.19 pins an older vulnerable Node transport. The updated transport passed all seven emulator tests, including production transaction conflict and rollback checks; 117 app tests and the build also pass. npm audit now reports nine moderate findings and no high/critical findings. Remaining ExcelJS transitive dependencies need compatibility review before major-version overrides; no forced downgrade was applied.

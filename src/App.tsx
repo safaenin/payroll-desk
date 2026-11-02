@@ -26,8 +26,10 @@ import {
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   addPayment,
+  voidPayment,
   approve,
   bonusRole,
+  promotionReviewKey,
   calculate,
   dueDate,
   emptyState,
@@ -113,6 +115,7 @@ function csvDownload(rows: (string | number)[][], name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 export default function App() {
+  const [voidId, setVoidId] = useState('');
   const [page, setPage] = useState<Page>('Overview'),
     [state, setState] = useState<State>(emptyState),
     [mode, setMode] = useState<'signed-out' | 'cloud'>('signed-out');
@@ -189,14 +192,16 @@ export default function App() {
     (a) => included(a.role) || state.employees.some((e) => e.code === a.code && e.manualPayroll),
   );
   const total = lines.reduce((n, l) => n + l.net, 0),
-    paid = state.payments.filter((p) => p.month === month).reduce((n, p) => n + p.amount, 0);
+    paid = state.payments
+      .filter((p) => !p.voidedAt && p.month === month)
+      .reduce((n, p) => n + p.amount, 0);
   const issues = lines.filter((l) => l.issues.length),
     pending = eligibleRecords.filter((a) => a.status === 'Pending').length;
   const totalBonus = lines.reduce((n, l) => n + l.attendanceBonus + l.performance + l.other, 0);
   const balance = (code: string) =>
     (lines.find((l) => l.code === code)?.net ?? 0) -
     state.payments
-      .filter((p) => p.code === code && p.month === month)
+      .filter((p) => !p.voidedAt && p.code === code && p.month === month)
       .reduce((n, p) => n + p.amount, 0);
   async function task(fn: () => Promise<unknown>) {
     setError('');
@@ -1172,6 +1177,19 @@ export default function App() {
                           <small>
                             {p.date} · {p.reference}
                           </small>
+                          {p.voidedAt ? (
+                            <small>
+                              Voided {p.voidedAt.slice(0, 10)} · {p.voidReason}
+                            </small>
+                          ) : (
+                            <button
+                              className="text-button"
+                              disabled={busy}
+                              onClick={() => setVoidId(p.id)}
+                            >
+                              Void incorrect payment
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1471,6 +1489,9 @@ export default function App() {
                   other: Math.round(Number(f.get('other')) * 100),
                   deduction: Math.round(Number(f.get('deduction')) * 100),
                   note: String(f.get('note')),
+                  ...(f.get('promotionReview') === 'on'
+                    ? { promotionReview: promotionReviewKey(state, month, adjustCode) }
+                    : {}),
                 };
                 if (
                   Object.values(adjustment).some(
@@ -1498,6 +1519,23 @@ export default function App() {
             <p>
               {lines.find((l) => l.code === adjustCode)?.name} · {monthLabel(month)}
             </p>
+            {(lines
+              .find((l) => l.code === adjustCode)
+              ?.issues.includes('Review attendance-bonus eligibility across promotion') ||
+              state.adjustments[month]?.find((a) => a.code === adjustCode)?.promotionReview) && (
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  name="promotionReview"
+                  defaultChecked={
+                    state.adjustments[month]?.find((a) => a.code === adjustCode)
+                      ?.promotionReview === promotionReviewKey(state, month, adjustCode)
+                  }
+                />
+                I reviewed this promotion and confirm no attendance bonus for this month because it
+                includes a bonus-excluded role. Enter the review reason below.
+              </label>
+            )}
             {(['performance', 'other', 'deduction'] as const).map((k) => (
               <label key={k}>
                 {k === 'performance'
@@ -1528,6 +1566,44 @@ export default function App() {
             </label>
             <button className="primary" disabled={busy}>
               Save adjustments
+            </button>
+          </form>
+        </Modal>
+      )}
+      {voidId && (
+        <Modal
+          title="Void incorrect payment record?"
+          onClose={() => {
+            if (!busy) setVoidId('');
+          }}
+        >
+          <p>
+            {state.payments.find((p) => p.id === voidId)?.code} ·{' '}
+            {money(state.payments.find((p) => p.id === voidId)?.amount ?? 0)}
+          </p>
+          <p>
+            This preserves the original record and restores the outstanding salary balance. It does
+            not reverse a bank transfer. Only use this for an incorrectly recorded payment.
+          </p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const reason = String(new FormData(e.currentTarget).get('reason') ?? '');
+              void task(async () => {
+                await commit(
+                  voidPayment(state, voidId, reason),
+                  'Payment voided. Outstanding salary updated.',
+                );
+                setVoidId('');
+              });
+            }}
+          >
+            <label>
+              Correction reason
+              <textarea name="reason" required disabled={busy} />
+            </label>
+            <button className="primary" disabled={busy}>
+              Confirm void payment
             </button>
           </form>
         </Modal>

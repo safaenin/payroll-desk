@@ -43,7 +43,9 @@ export function brandPayrollSummary(state: State, brand: string, from: string, t
           state.employees.find((e) => e.code === line.code),
           run.month,
         );
-      const payments = state.payments.filter((p) => p.month === run.month && p.code === line.code);
+      const payments = state.payments.filter(
+        (p) => !p.voidedAt && p.month === run.month && p.code === line.code,
+      );
       const paid = payments.reduce((n, p) => n + p.amount, 0);
       const [year, month] = run.month.split('-').map(Number);
       const date = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);

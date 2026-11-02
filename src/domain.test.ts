@@ -178,3 +178,124 @@ describe('payroll rules', () => {
     expect(approve(s, '2026-09').runs[0].lines).toHaveLength(35);
   });
 });
+
+describe('role changes with the same employee code', () => {
+  it('updates a date without duplicating the employee and uses dated wages', () => {
+    const s = fixture(30);
+    s.employees[0].rates.push({
+      from: '2026-09-16',
+      role: 'FR_Supervisor',
+      dailyMinor: 60000,
+      bonusEligible: true,
+    });
+    const incoming = s.attendance.map((a) =>
+      a.date >= '2026-09-16' ? { ...a, role: 'FR_Supervisor' } : a,
+    );
+    const updated = mergeAttendance(s, incoming, 'role-update.xlsx');
+    expect(updated.employees).toHaveLength(1);
+    expect(updated.attendance).toHaveLength(30);
+    expect(updated.imports.at(-1)?.updated).toBe(15);
+    expect(updated.imports.at(-1)?.revisions[0].before.role).toBe('FR_Packer');
+    expect(calculate(updated, '2026-09')[0]).toMatchObject({
+      code: 'E1',
+      base: 1650000,
+      attendanceBonus: 100000,
+      issues: [],
+    });
+  });
+
+  it('does not block fixed monthly pay on attendance-bonus role changes', () => {
+    const s = fixture(30);
+    s.employees[0].rates[0].fixedMonthlyMinor = 1000000;
+    s.attendance = s.attendance.map((a) =>
+      a.date >= '2026-09-16' ? { ...a, role: 'FR_Shift-Incharge' } : a,
+    );
+    expect(calculate(s, '2026-09')[0]).toMatchObject({
+      base: 1000000,
+      attendanceBonus: 0,
+      issues: [],
+    });
+  });
+});
+
+it('requires a reason for promotion review and invalidates it when attendance or wages change', async () => {
+  const { promotionReviewKey } = await import('./domain');
+  const s = fixture(30);
+  s.attendance = s.attendance.map((a) =>
+    a.date >= '2026-09-16' ? { ...a, role: 'FR_Shift-Incharge' } : a,
+  );
+  const warning = 'Review attendance-bonus eligibility across promotion';
+  expect(calculate(s, '2026-09')[0].issues).toContain(warning);
+  s.adjustments['2026-09'] = [
+    {
+      code: 'E1',
+      performance: 0,
+      other: 0,
+      deduction: 0,
+      note: '',
+      promotionReview: promotionReviewKey(s, '2026-09', 'E1'),
+    },
+  ];
+  expect(calculate(s, '2026-09')[0].issues).toContain(warning);
+  s.adjustments['2026-09'][0].note = 'Promoted on 16 September; excluded for this month.';
+  expect(calculate(s, '2026-09')[0]).toMatchObject({ attendanceBonus: 0, issues: [] });
+  expect(approve(s, '2026-09').runs[0].lines[0].segments.join(' ')).toContain('Promotion reviewed');
+  s.attendance[0].payable = 0;
+  expect(calculate(s, '2026-09')[0].issues).toContain(warning);
+  s.attendance[0].payable = 1;
+  s.employees[0].rates[0].dailyMinor++;
+  expect(calculate(s, '2026-09')[0].issues).toContain(warning);
+});
+
+it('rejects impossible and future completed-payment dates while allowing actual earlier payments', () => {
+  const s = approve(fixture(), '2026-09');
+  const payment = {
+    id: 'date-check',
+    month: '2026-09',
+    code: 'E1',
+    amount: 100,
+    date: '2026-10-08',
+    reference: 'bank-ref',
+  };
+  for (const date of ['2026-02-30', '2026-13-01', 'not-a-date', '2999-01-01']) {
+    expect(() => addPayment(s, { ...payment, date })).toThrow('valid completed payment date');
+  }
+  expect(addPayment(s, payment).payments).toHaveLength(1);
+});
+
+it('voids an incorrect payment with an audit and restores payroll and brand balances', async () => {
+  const { voidPayment } = await import('./domain');
+  const { brandPayrollSummary } = await import('./brandPayroll');
+  const approved = approve(fixture(), '2026-09');
+  const amount = approved.runs[0].lines[0].net;
+  const payment = {
+    id: 'original',
+    month: '2026-09',
+    code: 'E1',
+    amount,
+    date: '2026-10-08',
+    reference: 'ref',
+  };
+  const paid = addPayment(approved, payment);
+  expect(brandPayrollSummary(paid, '', '', '').outstanding).toBe(0);
+  expect(() => voidPayment(paid, 'original', ' ')).toThrow('reason');
+  const corrected = voidPayment(paid, 'original', 'Entered twice in source register');
+  expect(corrected.payments[0]).toMatchObject({
+    ...payment,
+    voidReason: 'Entered twice in source register',
+  });
+  expect(corrected.payments[0].voidedAt).toBeTruthy();
+  expect(paid.payments[0].voidedAt).toBeUndefined();
+  expect(corrected.runs).toEqual(approved.runs);
+  expect(brandPayrollSummary(corrected, '', '', '')).toMatchObject({
+    paid: 0,
+    outstanding: amount,
+  });
+  expect(() => voidPayment(corrected, 'original', 'Again')).toThrow('already voided');
+  expect(() => voidPayment(corrected, 'missing', 'Reason')).toThrow('not found');
+  const replacement = addPayment(corrected, { ...payment, id: 'replacement' });
+  expect(replacement.payments).toHaveLength(2);
+  expect(brandPayrollSummary(replacement, '', '', '').outstanding).toBe(0);
+  expect(() => addPayment(corrected, payment)).toThrow('already recorded');
+  expect(() => addPayment(approved, { ...payment, voidedAt: 'now' })).toThrow('void details');
+});

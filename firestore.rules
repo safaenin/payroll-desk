@@ -46,6 +46,14 @@ service cloud.firestore {
         ];
       allow update: if owner(uid) && group == 'advances'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['schedule']);
+      // Payment facts remain immutable; a correction can only add a void audit.
+      allow update: if owner(uid) && group == 'payments'
+        && !resource.data.keys().hasAny(['voidedAt', 'voidReason'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['voidedAt', 'voidReason'])
+        && request.resource.data.voidedAt is string
+        && request.resource.data.voidedAt.size() > 0
+        && request.resource.data.voidReason is string
+        && request.resource.data.voidReason.size() > 0;
       allow delete: if false;
       allow delete: if owner(uid) && group == 'businessExpenses'
         && resource.data.keys().hasAll(['deletion'])

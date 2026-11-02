@@ -36,6 +36,7 @@ export type Attendance = {
   primaryStore: string;
 };
 export type Adjustment = {
+  promotionReview?: string;
   code: string;
   performance: number;
   other: number;
@@ -69,6 +70,8 @@ export type Run = {
   rules: string;
 };
 export type Payment = {
+  voidedAt?: string;
+  voidReason?: string;
   id: string;
   month: string;
   code: string;
@@ -161,6 +164,20 @@ export function monthDates(month: string) {
     (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`,
   );
 }
+export function promotionReviewKey(state: State, month: string, code: string): string {
+  const employee = state.employees.find((e) => e.code === code);
+  return JSON.stringify({
+    month,
+    code,
+    manualPayroll: employee?.manualPayroll ?? false,
+    rates: [...(employee?.rates ?? [])].sort((a, b) => a.from.localeCompare(b.from)),
+    attendance: state.attendance
+      .filter((a) => a.code === code && a.date.startsWith(month))
+      .slice()
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((a) => [a.date, a.role, a.status, a.payable]),
+  });
+}
 export function calculate(state: State, month: string): Line[] {
   const records = state.attendance.filter(
     (a) =>
@@ -227,7 +244,13 @@ export function calculate(state: State, month: string): Line[] {
           issues.push(`Unmapped status ${row.status}`);
       }
       const roleKinds = new Set(rows.map((r) => bonusRole(r.role)));
-      if (roleKinds.size > 1) issues.push('Review attendance-bonus eligibility across promotion');
+      const adj = state.adjustments[month]?.find((a) => a.code === code);
+      if (
+        fixed === undefined &&
+        roleKinds.size > 1 &&
+        !(adj?.note.trim() && adj.promotionReview === promotionReviewKey(state, month, code))
+      )
+        issues.push('Review attendance-bonus eligibility across promotion');
       const fullDays = rows.filter((r) => r.status === 'P' && r.payable === 1).length;
       if (fixed !== undefined) {
         base = fixed;
@@ -237,7 +260,13 @@ export function calculate(state: State, month: string): Line[] {
         );
       }
       const attendanceBonus = eligible && fullDays >= 26 ? 100000 : 0;
-      const adj = state.adjustments[month]?.find((a) => a.code === code);
+      if (
+        fixed === undefined &&
+        roleKinds.size > 1 &&
+        adj?.promotionReview === promotionReviewKey(state, month, code) &&
+        adj.note.trim()
+      )
+        segments.add('Promotion reviewed: attendance bonus excluded. ' + adj.note.trim());
       const performance = adj?.performance ?? 0,
         other = adj?.other ?? 0,
         deduction = adj?.deduction ?? 0;
@@ -396,24 +425,41 @@ export function approve(state: State, month: string): State {
   };
 }
 export function addPayment(state: State, payment: Payment): State {
+  if (payment.voidedAt || payment.voidReason)
+    throw new Error('New payments cannot contain void details.');
   const line = state.runs
     .find((r) => r.month === payment.month)
     ?.lines.find((l) => l.code === payment.code);
   if (!line) throw new Error('Approve payroll before recording payments.');
   if (!payment.reference.trim() || !payment.date)
     throw new Error('Payment date and reference are required.');
+  const paymentDate = new Date(payment.date + 'T00:00:00Z');
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(payment.date) ||
+    !Number.isFinite(paymentDate.getTime()) ||
+    paymentDate.toISOString().slice(0, 10) !== payment.date ||
+    payment.date > today
+  )
+    throw new Error('Enter a valid completed payment date, not a future date.');
   if (
     state.payments.some(
       (p) =>
         p.id === payment.id ||
-        (p.reference.trim() === payment.reference.trim() &&
+        (!p.voidedAt &&
+          p.reference.trim() === payment.reference.trim() &&
           p.code === payment.code &&
           p.month === payment.month),
     )
   )
     throw new Error('This payment is already recorded.');
   const paid = state.payments
-    .filter((p) => p.code === payment.code && p.month === payment.month)
+    .filter((p) => !p.voidedAt && p.code === payment.code && p.month === payment.month)
     .reduce((n, p) => n + p.amount, 0);
   if (
     !Number.isSafeInteger(payment.amount) ||
@@ -422,4 +468,17 @@ export function addPayment(state: State, payment: Payment): State {
   )
     throw new Error('Enter a positive amount no greater than the outstanding balance.');
   return { ...state, payments: [...state.payments, payment] };
+}
+
+export function voidPayment(state: State, id: string, reason: string): State {
+  const payment = state.payments.find((p) => p.id === id);
+  if (!payment) throw new Error('Payment not found. Reload records.');
+  if (payment.voidedAt) throw new Error('This payment is already voided.');
+  if (!reason.trim()) throw new Error('Enter a reason for voiding this payment.');
+  return {
+    ...state,
+    payments: state.payments.map((p) =>
+      p.id === id ? { ...p, voidedAt: new Date().toISOString(), voidReason: reason.trim() } : p,
+    ),
+  };
 }
