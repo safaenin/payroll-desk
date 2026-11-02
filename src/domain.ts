@@ -8,6 +8,7 @@ import { recovered, recoveriesFor, type Advance, type Recovery } from './advance
 import type { EmployeeDeletion } from './employeeDeletion';
 
 export type Rate = {
+  cappedMonthly?: boolean;
   fixedMonthlyMinor?: number;
   from: string;
   role: string;
@@ -153,15 +154,18 @@ export const included = (role: string) =>
   PAYROLL_ROLE_INCLUSIONS.exactRoles.includes(role.trim());
 export const key = (r: Attendance) => `${r.code}|${r.date}`;
 export const bonusRole = roleEarnsBonus;
-export const rateValue = (rate: Rate) =>
+export const rateValue = (rate: Rate, calendarDays?: number) =>
   rate.monthlyMinor !== undefined && rate.divisor
-    ? rate.monthlyMinor / rate.divisor
+    ? rate.monthlyMinor /
+      (rate.cappedMonthly && calendarDays ? Math.min(rate.divisor, calendarDays) : rate.divisor)
     : rate.dailyMinor;
 export const rateLabel = (rate: Rate) =>
   rate.fixedMonthlyMinor !== undefined
     ? `${money(rate.fixedMonthlyMinor)}/month fixed`
     : rate.monthlyMinor !== undefined && rate.divisor
-      ? `${money(rate.monthlyMinor)} ÷ ${rate.divisor}`
+      ? rate.cappedMonthly
+        ? `${money(rate.monthlyMinor)}/month cap · ${rate.divisor}-day basis (short months adjusted)`
+        : `${money(rate.monthlyMinor)} ÷ ${rate.divisor}`
       : money(rate.dailyMinor);
 export function dueDate(month: string) {
   const [y, m] = month.split('-').map(Number);
@@ -242,6 +246,9 @@ export function calculate(state: State, month: string): Line[] {
         rows.length < monthDates(month).filter((date) => employedOn(employee, date)).length
       )
         issues.push('Complete manual attendance for every day of this month');
+      const capped = monthRate?.cappedMonthly;
+      if (monthChanges.some((r) => r.cappedMonthly) || (capped && monthChanges.length))
+        issues.push('Capped monthly wage changes must start on the first day of a month.');
       let base = 0;
       let eligible = true;
       const segments = new Set<string>();
@@ -249,7 +256,7 @@ export function calculate(state: State, month: string): Line[] {
         const rate = rates.find((r) => r.from <= row.date);
         if (!rate) issues.push(`Wage missing on ${row.date}`);
         else {
-          base += row.payable * rateValue(rate);
+          base += row.payable * rateValue(rate, monthDates(month).length);
           eligible &&=
             rate.bonusEligible &&
             bonusRole(
@@ -258,13 +265,21 @@ export function calculate(state: State, month: string): Line[] {
               state.attendanceBonusExactMatch,
             ) &&
             bonusRole(row.role, state.attendanceBonusExclusions, state.attendanceBonusExactMatch);
-          segments.add(`${rate.from}: ${rateLabel(rate)}/day · ${rate.role}`);
+          segments.add(
+            `${rate.from}: ${rateLabel(rate)}${rate.cappedMonthly ? '' : '/day'} · ${rate.role}`,
+          );
         }
         if (row.status === 'Pending') issues.push('Pending attendance');
         if (row.status === 'F' && row.payable !== 0)
           issues.push('Failed attendance must be unpaid');
         if (!['P', 'HD', 'A', 'WO', 'F', 'L', 'A-R', 'Pending'].includes(row.status))
           issues.push(`Unmapped status ${row.status}`);
+      }
+      if (capped && monthRate.monthlyMinor !== undefined) {
+        base = Math.min(base, monthRate.monthlyMinor);
+        segments.add(
+          `Monthly base capped at ${money(monthRate.monthlyMinor)}; divisor ${Math.min(monthRate.divisor ?? 30, monthDates(month).length)} for ${month}.`,
+        );
       }
       const roleKinds = new Set(
         rows.map((r) =>

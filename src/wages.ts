@@ -18,6 +18,10 @@ export function correctWage(rates: Rate[], from: string, next: Rate, reason: str
     throw new Error('Use a divisor between 1 and 31.');
   if (next.fixedMonthlyMinor !== undefined && !next.from.endsWith('-01'))
     throw new Error('Fixed monthly wages must begin on the first day.');
+  if (next.cappedMonthly && (next.monthlyMinor === undefined || !next.from.endsWith('-01')))
+    throw new Error(
+      'Capped monthly wages require a monthly amount and must begin on the first day.',
+    );
   const correction: WageCorrection = {
     at: new Date().toISOString(),
     reason: reason.trim(),
