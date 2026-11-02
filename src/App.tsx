@@ -1,3 +1,5 @@
+import { correctWage } from './wages';
+import PayrollRevision from './PayrollRevision';
 import SalaryBrandEditor from './SalaryBrandEditor';
 import type { SalaryBrandAssignment } from './brandPayroll';
 import type { Brand } from './expenses';
@@ -1026,7 +1028,7 @@ export default function App() {
                     </h2>
                     <p>
                       {run
-                        ? 'Approved earnings are preserved even if attendance or wages change.'
+                        ? 'Approved earnings stay unchanged until you explicitly approve a revision. Previous versions are preserved.'
                         : 'Check wages, award manager-selected bonuses, and resolve exceptions.'}
                     </p>
                   </div>
@@ -1080,7 +1082,12 @@ export default function App() {
                           </td>
                           <td className="numeric strong">
                             {money(l.net)}
-                            {run && <small>Due {money(balance(l.code))}</small>}
+                            {run && (
+                              <small>
+                                {balance(l.code) < 0 ? 'Overpaid' : 'Due'}{' '}
+                                {money(Math.abs(balance(l.code)))}
+                              </small>
+                            )}
                           </td>
                           <td>
                             <div className="row-actions">
@@ -1093,6 +1100,12 @@ export default function App() {
                                 </button>
                               ) : (
                                 <>
+                                  <button
+                                    className="text-button"
+                                    onClick={() => setAdjustCode(l.code)}
+                                  >
+                                    Edit revision inputs
+                                  </button>
                                   <button
                                     className="text-button"
                                     onClick={() => setPayCode(l.code)}
@@ -1112,6 +1125,18 @@ export default function App() {
                     </tbody>
                   </table>
                 </div>
+                {run && (
+                  <PayrollRevision
+                    key={month}
+                    state={state}
+                    month={month}
+                    busy={busy}
+                    save={(next) =>
+                      commit(next, 'Revised payroll approved; original and payments preserved.')
+                    }
+                    task={task}
+                  />
+                )}
                 {!lines.length && (
                   <Empty
                     title="No payroll entries yet"
@@ -1477,7 +1502,12 @@ export default function App() {
         </Modal>
       )}
       {adjustCode && (
-        <Modal title="Bonuses & deductions" onClose={() => setAdjustCode('')}>
+        <Modal
+          title={
+            run ? 'Revision inputs — approve revision to apply changes' : 'Bonuses & deductions'
+          }
+          onClose={() => setAdjustCode('')}
+        >
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -1753,7 +1783,7 @@ export default function App() {
             <p>
               Scheduled payment: {dueDate(month)}
               <br />
-              Approved: {run?.approvedAt.slice(0, 10)}
+              Approved: {run?.approvedAt.slice(0, 10)} · Version {(run?.history?.length ?? 0) + 1}
             </p>
           </div>
           <button className="primary no-print" onClick={() => window.print()}>
@@ -1885,10 +1915,20 @@ function EmployeeForm({
     [eligible, setEligible] = useState(true),
     [rateError, setRateError] = useState(''),
     [rateMode, setRateMode] = useState('daily');
+  const [editingRate, setEditingRate] = useState(''),
+    [correctionReason, setCorrectionReason] = useState('');
+  const [wageCorrections, setWageCorrections] = useState(employee?.wageCorrections ?? []);
+  const [rateDate, setRateDate] = useState(''),
+    [rateAmount, setRateAmount] = useState(''),
+    [rateDivisor, setRateDivisor] = useState('26');
   const [assignment, setAssignment] = useState<SalaryBrandAssignment | null>(null);
   const [salaryBrandError, setSalaryBrandError] = useState('');
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (editingRate) {
+      setRateError('Apply the wage correction or cancel it before saving the employee.');
+      return;
+    }
     const f = new FormData(e.currentTarget);
     if (salaryBrandError) {
       setRateError(salaryBrandError);
@@ -1908,6 +1948,7 @@ function EmployeeForm({
       offerSent: f.get('offerSent') === 'on',
       offerReceived: f.get('offerReceived') === 'on',
       rates,
+      wageCorrections,
       brandHistory: assignment
         ? [...(employee?.brandHistory ?? []).filter((a) => a.from !== assignment.from), assignment]
         : (employee?.brandHistory ?? []),
@@ -1963,17 +2004,92 @@ function EmployeeForm({
               {r.bonusEligible && bonusRole(r.role) ? 'eligible' : 'excluded'}
             </small>
           </span>
+          <button
+            type="button"
+            className="text-button"
+            disabled={busy}
+            onClick={() => {
+              setEditingRate(r.from);
+              setRateDate(r.from);
+              setRateAmount(String((r.fixedMonthlyMinor ?? r.monthlyMinor ?? r.dailyMinor) / 100));
+              setRateDivisor(String(r.divisor ?? 26));
+              setRole(r.role);
+              setEligible(r.bonusEligible);
+              setRateMode(
+                r.fixedMonthlyMinor !== undefined
+                  ? 'fixed'
+                  : r.monthlyMinor !== undefined
+                    ? 'monthly'
+                    : 'daily',
+              );
+              setCorrectionReason('');
+              setRateError('');
+            }}
+          >
+            Correct entry
+          </button>
         </div>
       ))}
+      {wageCorrections.length > 0 && (
+        <details>
+          <summary>Wage correction history ({wageCorrections.length})</summary>
+          {wageCorrections.map((c, i) => (
+            <p key={i}>
+              {c.at.slice(0, 10)} · Effective {c.before.from}: {rateLabel(c.before)} →{' '}
+              {rateLabel(c.after)} · {c.reason}
+            </p>
+          ))}
+        </details>
+      )}
       <div className="rate-entry">
+        {editingRate && (
+          <>
+            <p>
+              Correcting the entry effective {editingRate}. Approved payroll stays unchanged until a
+              revision is approved.
+            </p>
+            <label>
+              Wage correction reason
+              <input
+                value={correctionReason}
+                onChange={(e) => setCorrectionReason(e.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                setEditingRate('');
+                setRateDate('');
+                setRateAmount('');
+                setCorrectionReason('');
+              }}
+            >
+              Cancel correction
+            </button>
+          </>
+        )}
         <div className="form-grid">
           <label>
             Effective from
-            <input type="date" id="rate-date" />
+            <input
+              type="date"
+              id="rate-date"
+              value={rateDate}
+              onChange={(e) => setRateDate(e.target.value)}
+              readOnly={Boolean(editingRate)}
+            />
           </label>
           <label>
             {rateMode === 'daily' ? 'Daily wage (₹)' : 'Monthly base (₹)'}
-            <input type="number" id="rate-amount" min="0.01" step="0.01" />
+            <input
+              type="number"
+              id="rate-amount"
+              min="0.01"
+              step="0.01"
+              value={rateAmount}
+              onChange={(e) => setRateAmount(e.target.value)}
+            />
           </label>
         </div>
         <div className="form-grid">
@@ -1988,7 +2104,14 @@ function EmployeeForm({
           {rateMode === 'monthly' && (
             <label>
               Divisor (days)
-              <input id="rate-divisor" type="number" min="1" max="31" defaultValue="26" />
+              <input
+                id="rate-divisor"
+                type="number"
+                min="1"
+                max="31"
+                value={rateDivisor}
+                onChange={(e) => setRateDivisor(e.target.value)}
+              />
             </label>
           )}
         </div>
@@ -2032,7 +2155,7 @@ function EmployeeForm({
               );
               return;
             }
-            if (rates.some((r) => r.from === date)) {
+            if (!editingRate && rates.some((r) => r.from === date)) {
               setRateError('A wage already starts on this date. Choose a new effective date.');
               return;
             }
@@ -2044,21 +2167,32 @@ function EmployeeForm({
               setRateError('Use a divisor between 1 and 31.');
               return;
             }
-            setRates([
-              ...rates,
-              {
-                from: date,
-                role: role.trim(),
-                dailyMinor: amount,
-                bonusEligible: rateMode !== 'fixed' && eligible && bonusRole(role),
-                ...(rateMode === 'fixed' ? { fixedMonthlyMinor: amount } : {}),
-                ...(rateMode === 'monthly' ? { monthlyMinor: amount, divisor } : {}),
-              },
-            ]);
+            const next = {
+              from: date,
+              role: role.trim(),
+              dailyMinor: amount,
+              bonusEligible: rateMode !== 'fixed' && eligible && bonusRole(role),
+              ...(rateMode === 'fixed' ? { fixedMonthlyMinor: amount } : {}),
+              ...(rateMode === 'monthly' ? { monthlyMinor: amount, divisor } : {}),
+            };
+            if (editingRate) {
+              try {
+                const corrected = correctWage(rates, editingRate, next, correctionReason);
+                setRates(corrected.rates);
+                setWageCorrections([...wageCorrections, corrected.correction]);
+                setEditingRate('');
+                setCorrectionReason('');
+              } catch (e) {
+                setRateError(e instanceof Error ? e.message : String(e));
+                return;
+              }
+            } else setRates([...rates, next]);
+            setRateDate('');
+            setRateAmount('');
             setRateError('');
           }}
         >
-          Add dated wage
+          {editingRate ? 'Apply wage correction' : 'Add dated wage'}
         </button>
         {rateError && (
           <p className="issue" role="alert">

@@ -32,7 +32,18 @@ export function purgeEmployee(state: State, code: string): State {
         rows.filter((a) => a.code !== code),
       ]),
     ),
-    runs: state.runs.map((r) => ({ ...r, lines: r.lines.filter((l) => l.code !== code) })),
+    runs: state.runs.map((r) => ({
+      ...r,
+      lines: r.lines.filter((l) => l.code !== code),
+      ...(r.history
+        ? {
+            history: r.history.map((v) => ({
+              ...v,
+              lines: v.lines.filter((l) => l.code !== code),
+            })),
+          }
+        : {}),
+    })),
     payments: state.payments.filter((p) => p.code !== code),
     advances: (state.advances ?? []).filter((a) => a.code !== code),
     files: state.files.filter((f) => f.code !== code),

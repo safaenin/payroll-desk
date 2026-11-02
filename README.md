@@ -96,7 +96,7 @@ Remaining verification/work:
 
 - Verify deployed Firestore authorization rules, concurrent-session behavior and complete cloud workflows; local emulator tests now cover unauthorized access, workspace isolation, payment void immutability, and the employee-deletion gate. Deployed rules still need verification.
 - Historical salary-workbook migration remains incomplete and needs employee mapping, month and effective-date decisions.
-- Approved earnings correction remains unimplemented; snapshots stay locked. Incorrect salary payments can be voided with a reason while preserving the original record.
+- Approved earnings can now be revised with a reason, preserving all earlier versions and payments. Incorrect salary payments can be voided with a reason while preserving the original record.
 - Mixed-role attendance-bonus exclusion can now be explicitly reviewed with a reason in Payroll → Adjust. Changed attendance/wages invalidate the review.
 - Fixed monthly pay has no automatic partial-month proration. No statutory deductions or automatic bank transfers are assumed.
 
@@ -122,7 +122,7 @@ New uploads automatically create/reuse `employees/{name-employeeCode}/` in Googl
 
 In Employees → Add employee, keep the generated internal SE code when no official code exists. Enable Manual payroll for staff absent from imported reports; this explicitly includes their non-FR roles. Add a dated wage using Fixed monthly — regardless of attendance, enter 10000 for ₹10,000, and choose the first day of the starting month. Save the wage and employee. Active fixed-pay employees appear in payroll without attendance; attendance bonus is disabled, while bonuses, deductions and advance recovery still apply. Fixed-pay changes must start on a month boundary; no automatic partial-month proration is performed.
 
-For manual attendance-based wages, choose Daily wage or Monthly base ÷ days instead. Under Attendance → Manual attendance, select the employee and enter every day of the selected month (P full, HD half, A/WO/L unpaid). Half-days count toward pay but not the 26-day bonus threshold. Missing days block approval for manual attendance employees. Review month coverage and approve payroll as usual after month end. Manual edits to approved months are blocked; imported reports cannot overwrite employees explicitly configured for manual payroll.
+For manual attendance-based wages, choose Daily wage or Monthly base ÷ days instead. Under Attendance → Manual attendance, select the employee and enter every day of the selected month (P full, HD half, A/WO/L unpaid). Half-days count toward pay but not the 26-day bonus threshold. Missing days block approval for manual attendance employees. Review month coverage and approve payroll as usual after month end. Manual edits to approved months update inputs only until a revision is approved; imported reports cannot overwrite employees explicitly configured for manual payroll.
 
 ## Business expenses
 
@@ -320,3 +320,11 @@ The emulator suite also executes the production save transaction: simultaneous s
 Browser verification on 2 November 2026: authenticated live workspace displayed 40 employees, a persisted approved payroll, matching payslip totals and separate deduction/recovery fields. The payment-void confirmation was opened and cancelled without modifying company records. This verifies read/display behavior, not a live correction write or Drive upload. Vitest was upgraded to 5.0.5; all 117 app tests and the production build pass. npm audit no longer reports critical advisories; 14 moderate/high dependency findings remain for focused review.
 
 Dependency follow-up: @grpc/grpc-js is overridden to 1.14.7 because Firebase 12.19 pins an older vulnerable Node transport. The updated transport passed all seven emulator tests, including production transaction conflict and rollback checks; 117 app tests and the build also pass. npm audit now reports nine moderate findings and no high/critical findings. Remaining ExcelJS transitive dependencies need compatibility review before major-version overrides; no forced downgrade was applied.
+
+### Revise approved payroll
+
+Publish the updated firestore.rules first. Correct dated wages, imported/manual attendance, or **Edit revision inputs** in Payroll. These edits do not alter the approved snapshot. Choose **Review revision**, compare old/new net amounts and paid balances, enter a reason, confirm review of the entire month, and choose **Approve revised payroll**. The original and each subsequent approved version remain under Previous approved versions, while all payment records stay unchanged. Payslips show the current version number. If revised pay is below payments already recorded, the difference remains an overpayment/credit; the app does not automatically recover it or deduct it next month. Advance recovery totals use the current approved version only. Employee deletion also removes that employee's entries from prior versions, as requested for full employee deletion.
+
+Payroll versions are stored within the monthly Firestore document; the existing 900 KB pre-save limit applies. A failed or oversized save leaves the approved cloud version unchanged.
+
+To fix an existing wage typo, open Employees → Edit → Wage history → Correct entry. The effective date stays fixed; change the amount, role, calculation or eligibility and enter a reason. Click Apply wage correction, then Save employee. Before/after values are retained in Wage correction history. Existing approved payroll amounts remain unchanged until Payroll → Review revision is approved. For a genuine promotion or future raise, continue using Add dated wage instead.

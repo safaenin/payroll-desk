@@ -43,7 +43,7 @@ export function saveManualAttendance(
 ): State {
   const employee = state.employees.find((e) => e.code === code && e.manualPayroll);
   if (!employee) throw new Error('Select an employee enabled for manual payroll.');
-  if (state.runs.some((r) => r.month === month)) throw new Error('This month is already approved.');
+
   const rows: Attendance[] = monthDates(month).map((date) => {
     const status = statuses[date];
     if (!['P', 'HD', 'A', 'WO', 'L', 'F'].includes(status))
@@ -94,11 +94,16 @@ export default function ManualAttendance({
   const draftKey = JSON.stringify([code, month]);
   const statuses = { ...manualAttendanceStatuses(state, code, month), ...(drafts[draftKey] ?? {}) };
   const overview = manualAttendanceOverview(month, statuses);
-  const locked = state.runs.some((r) => r.month === month);
   return (
     <section className="panel">
       <div className="settings-body">
         <h2>Manual attendance</h2>
+        {state.runs.some((r) => r.month === month) && (
+          <p>
+            Changes update source attendance only. Use Payroll → Review revision to update approved
+            earnings.
+          </p>
+        )}
         <p>
           For employees missing from the report: enable manual payroll in their profile. P = full
           day; HD = half-day; A, WO, L and F (Failed) = unpaid. Fixed monthly salary is unaffected.
@@ -176,9 +181,8 @@ export default function ManualAttendance({
                 )}
               </div>
               <p>
-                {locked
-                  ? 'This month is approved. Attendance is locked.'
-                  : 'Unrecorded dates default to P. Review absences, leave and week offs before saving. Changes are saved only when you press Save.'}
+                Unrecorded dates default to P for new months. Review all dates before saving.
+                Approved earnings change only after revision approval.
               </p>
             </div>
             <div className="attendance-calendar-layout">
@@ -191,7 +195,7 @@ export default function ManualAttendance({
                       timeZone: 'UTC',
                     })}
                   </h3>
-                  <span>{locked ? 'Approved · locked' : 'Tap a day to edit'}</span>
+                  <span>Tap a day to edit</span>
                 </div>
                 <div className="attendance-weekdays" aria-hidden="true">
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
@@ -205,7 +209,7 @@ export default function ManualAttendance({
                         <button
                           type="button"
                           className={`attendance-date attendance-status-${statuses[date] || 'empty'}`}
-                          disabled={busy || locked}
+                          disabled={busy}
                           aria-label={`${date}, ${manualStatusLabels[statuses[date]] ?? 'Unrecorded'}`}
                           aria-pressed={selectedDate === date}
                           onClick={() => setSelectedDate(date)}
@@ -232,7 +236,7 @@ export default function ManualAttendance({
                   </span>
                 </div>
               </section>
-              {selectedDate && !locked && (
+              {selectedDate && (
                 <section
                   ref={dateEditor}
                   tabIndex={-1}
@@ -292,10 +296,7 @@ export default function ManualAttendance({
               )}
             </div>
             {error && <p role="alert">{error}</p>}
-            <button
-              className="primary"
-              disabled={busy || state.runs.some((r) => r.month === month)}
-            >
+            <button className="primary" disabled={busy}>
               Save manual attendance
             </button>
           </form>

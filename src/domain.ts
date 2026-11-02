@@ -1,3 +1,4 @@
+import type { WageCorrection } from './wages';
 import { salaryShares, type SalaryBrandAssignment, type SalaryBrandShare } from './brandPayroll';
 import type { Business } from './expenses';
 import { PAYROLL_ROLE_INCLUSIONS } from './config/payroll';
@@ -14,6 +15,7 @@ export type Rate = {
   divisor?: number;
 };
 export type Employee = {
+  wageCorrections?: WageCorrection[];
   brandHistory?: SalaryBrandAssignment[];
   manualPayroll?: boolean;
   code: string;
@@ -62,6 +64,8 @@ export type Line = {
   segments: string[];
 };
 export type Run = {
+  history?: PayrollVersion[];
+  revisionReason?: string;
   month: string;
   approvedAt: string;
   due: string;
@@ -69,6 +73,7 @@ export type Run = {
   sourceRevision: number;
   rules: string;
 };
+export type PayrollVersion = Omit<Run, 'history'>;
 export type Payment = {
   voidedAt?: string;
   voidReason?: string;
@@ -386,10 +391,35 @@ export function mergeAttendance(state: State, incoming: Attendance[], name: stri
     ],
   };
 }
-export function approve(state: State, month: string): State {
-  if (state.runs.some((r) => r.month === month))
+export function approve(state: State, month: string, revisionReason?: string): State {
+  const previous = state.runs.find((r) => r.month === month);
+  if (revisionReason !== undefined && (!previous || !revisionReason.trim()))
+    throw new Error('An approved payroll and revision reason are required.');
+  if (previous && revisionReason === undefined)
     throw new Error('This month is already approved. Its snapshot is preserved.');
   const lines = calculate(state, month);
+  if (previous)
+    for (const old of previous.lines) {
+      if (
+        !lines.some((l) => l.code === old.code) &&
+        state.payments.some((p) => p.month === month && p.code === old.code && !p.voidedAt)
+      )
+        lines.push({
+          ...old,
+          base: 0,
+          attendanceBonus: 0,
+          performance: 0,
+          other: 0,
+          deduction: 0,
+          advanceRecovery: 0,
+          advanceRecoveries: [],
+          net: 0,
+          days: 0,
+          fullDays: 0,
+          issues: [],
+          segments: ['No earnings in revised inputs; payment history retained.'],
+        });
+    }
   const missingRecovery = (state.advances ?? []).find(
     (a) => a.schedule.some((i) => i.month === month) && !lines.some((l) => l.code === a.code),
   );
@@ -405,8 +435,14 @@ export function approve(state: State, month: string): State {
   return {
     ...state,
     runs: [
-      ...state.runs,
+      ...state.runs.filter((r) => r.month !== month),
       {
+        ...(previous
+          ? {
+              history: [...(previous.history ?? []), payrollVersion(previous)],
+              revisionReason: revisionReason!.trim(),
+            }
+          : {}),
         month,
         lines: lines.map((line) => ({
           ...line,
@@ -423,6 +459,10 @@ export function approve(state: State, month: string): State {
       },
     ],
   };
+}
+export function payrollVersion(run: Run): PayrollVersion {
+  const { history, ...snapshot } = run;
+  return { ...snapshot, revisionReason: snapshot.revisionReason ?? '' };
 }
 export function addPayment(state: State, payment: Payment): State {
   if (payment.voidedAt || payment.voidReason)

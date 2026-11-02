@@ -299,3 +299,49 @@ it('voids an incorrect payment with an audit and restores payroll and brand bala
   expect(() => addPayment(corrected, payment)).toThrow('already recorded');
   expect(() => addPayment(approved, { ...payment, voidedAt: 'now' })).toThrow('void details');
 });
+
+it('revises approved earnings while preserving versions, payments and counting advances once', async () => {
+  const { payrollVersion } = await import('./domain');
+  const { recovered } = await import('./advances');
+  const s = fixture(30);
+  s.advances = [
+    {
+      id: 'a',
+      code: 'E1',
+      amount: 400000,
+      paidOn: '2026-08-01',
+      reference: 'adv',
+      note: '',
+      createdAt: 'now',
+      schedule: [{ month: '2026-09', amount: 200000 }],
+    },
+  ];
+  const first = approve(s, '2026-09');
+  const paid = addPayment(first, {
+    id: 'paid',
+    month: '2026-09',
+    code: 'E1',
+    amount: first.runs[0].lines[0].net,
+    date: '2026-10-08',
+    reference: 'bank',
+  });
+  paid.adjustments['2026-09'] = [
+    { code: 'E1', performance: 0, other: 0, deduction: 10000, note: 'Correction' },
+  ];
+  expect(() => approve(paid, '2026-09', ' ')).toThrow('reason');
+  expect(() => approve({ ...paid, coverage: {} }, '2026-09', 'Correction')).toThrow('coverage');
+  const revised = approve(paid, '2026-09', 'Correct deduction');
+  expect(revised.runs).toHaveLength(1);
+  expect(revised.runs[0].history).toEqual([payrollVersion(first.runs[0])]);
+  expect(revised.payments).toEqual(paid.payments);
+  expect(revised.runs[0].lines[0].net).toBe(first.runs[0].lines[0].net - 10000);
+  expect(recovered(revised, 'a')).toBe(200000);
+  const again = approve(revised, '2026-09', 'Second review');
+  expect(again.runs[0].history).toEqual([
+    payrollVersion(first.runs[0]),
+    payrollVersion(revised.runs[0]),
+  ]);
+  expect(recovered(again, 'a')).toBe(200000);
+  const { purgeEmployee } = await import('./employeeDeletion');
+  expect(purgeEmployee(again, 'E1').runs[0].history?.every((v) => v.lines.length === 0)).toBe(true);
+});

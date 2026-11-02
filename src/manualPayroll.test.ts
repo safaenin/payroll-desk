@@ -72,7 +72,7 @@ it('pays manually entered non-FR days, counts half-days only toward base', () =>
   expect(s.coverage['2026-09']).toBe(false);
   expect(() => mergeAttendance(s, [s.attendance[0]], 'report.xlsx')).toThrow('manual payroll');
 });
-it('blocks incomplete manual attendance and approved-month edits', () => {
+it('blocks incomplete attendance and preserves approved pay when source attendance changes', () => {
   const s = fixture();
   expect(calculate(s, '2026-09')[0].issues).toContain(
     'Complete manual attendance for every day of this month',
@@ -86,7 +86,14 @@ it('blocks incomplete manual attendance and approved-month edits', () => {
   );
   complete.coverage['2026-09'] = true;
   complete = approve(complete, '2026-09');
-  expect(() => saveManualAttendance(complete, 'SE-1', '2026-09', {})).toThrow('approved');
+  const corrected = saveManualAttendance(
+    complete,
+    'SE-1',
+    '2026-09',
+    Object.fromEntries(monthDates('2026-09').map((d) => [d, 'A'])),
+  );
+  expect(corrected.runs).toEqual(complete.runs);
+  expect(corrected.coverage['2026-09']).toBe(false);
 });
 it('fixed salary remains full with absences and disables attendance bonus', () => {
   const s = saveManualAttendance(

@@ -115,3 +115,41 @@ test('production transaction blocks during deletion and rolls back denied writes
   });
   await assert.rejects(commitCloudChanges(db, root, 1, []), /pending employee deletion/);
 });
+
+test('payroll revision must append the exact old version and preserve existing history', async () => {
+  const db = owner();
+  const ref = doc(db, `${root}/runs/2026-09`);
+  const original = {
+    month: '2026-09',
+    approvedAt: 'first',
+    due: '2026-10-08',
+    lines: [{ code: 'E1', net: 100 }],
+    sourceRevision: 1,
+    rules: 'v2',
+  };
+  await setDoc(ref, original);
+  const next = {
+    ...original,
+    lines: [{ code: 'E1', net: 90 }],
+    approvedAt: 'second',
+    sourceRevision: 2,
+    revisionReason: 'Correction',
+    history: [{ ...original, revisionReason: '' }],
+  };
+  await assertFails(setDoc(ref, { ...next, history: [] }));
+  await assertFails(setDoc(ref, { ...next, revisionReason: '' }));
+  await assertFails(
+    setDoc(ref, { ...next, history: [{ ...original, lines: [], revisionReason: '' }] }),
+  );
+  await assertSucceeds(setDoc(ref, next));
+  await assertFails(updateDoc(ref, { history: [] }));
+  const { history, ...snapshot } = next;
+  await assertSucceeds(
+    setDoc(ref, {
+      ...next,
+      approvedAt: 'third',
+      revisionReason: 'Follow-up',
+      history: [...history, snapshot],
+    }),
+  );
+});

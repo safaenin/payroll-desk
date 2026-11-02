@@ -12,6 +12,18 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/owners/$(uid)/meta/revision)
         .data.keys().hasAll(['employeeDeletion']);
     }
+    function validPayrollRevision() {
+      let old = resource.data;
+      let next = request.resource.data;
+      let snapshot = {
+        'month':old.month,'approvedAt':old.approvedAt,'due':old.due,
+        'lines':old.lines,'sourceRevision':old.sourceRevision,'rules':old.rules,
+        'revisionReason':old.get('revisionReason','')
+      };
+      return next.diff(old).affectedKeys().hasOnly(['lines','approvedAt','sourceRevision','rules','history','revisionReason'])
+        && next.revisionReason is string && next.revisionReason.size() > 0
+        && next.history == old.get('history',[]).concat([snapshot]);
+    }
     match /owners/{uid}/{group}/{id} {
       allow read: if owner(uid);
       allow create: if owner(uid)
@@ -46,6 +58,7 @@ service cloud.firestore {
         ];
       allow update: if owner(uid) && group == 'advances'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['schedule']);
+      allow update: if owner(uid) && group == 'runs' && validPayrollRevision();
       // Payment facts remain immutable; a correction can only add a void audit.
       allow update: if owner(uid) && group == 'payments'
         && !resource.data.keys().hasAny(['voidedAt', 'voidReason'])
@@ -72,7 +85,7 @@ service cloud.firestore {
       allow update: if owner(uid) && deletingEmployee(uid)
         && (
           (group == 'runs'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lines']))
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lines', 'history']))
           || (group == 'imports'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revisions']))
         );
