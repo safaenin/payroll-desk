@@ -62,7 +62,7 @@ import {
   finishEmployeeDeletion,
 } from './storage';
 import { parseAttendance } from './importer';
-import ManualAttendance from './ManualAttendance';
+import AttendanceRegister from './AttendanceRegister';
 import DocumentsPanel from './DocumentsPanel';
 import Advances from './AdvancesPanel';
 import { deletionSummary } from './employeeDeletion';
@@ -968,23 +968,6 @@ export default function App() {
           )}
           {page === 'Attendance' && (
             <>
-              <ManualAttendance
-                key={month}
-                state={state}
-                month={month}
-                busy={busy}
-                save={async (next) => {
-                  setBusy(true);
-                  try {
-                    return await commit(
-                      next,
-                      'Manual attendance saved. Review payroll before approval.',
-                    );
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              />
               <div className="stats-grid">
                 <Stat
                   label="Attendance records"
@@ -1004,90 +987,16 @@ export default function App() {
                 <Stat
                   label="Pending records"
                   value={String(pending)}
-                  detail="Resolve in your source report"
+                  detail="Review pending dates in the calendar"
                 />
               </div>
-              <section className="panel">
-                <div className="section-heading">
-                  <div>
-                    <h2>Attendance register</h2>
-                    <p>
-                      Reimport daily reports safely. Changed attendance is recorded in import
-                      history.
-                    </p>
-                  </div>
-                </div>
-                <div className="toolbar">
-                  <Search size={17} />
-                  <input
-                    aria-label="Search attendance"
-                    placeholder="Search employee name or code"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                  <span>{attendance.length} rows</span>
-                </div>
-                <div className="table-wrap tall">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>EMPLOYEE</th>
-                        <th>DATE</th>
-                        <th>ROLE</th>
-                        <th>STATUS</th>
-                        <th>PAYABLE</th>
-                        <th>PAYROLL</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {attendance
-                        .filter((a) =>
-                          `${a.name} ${a.code}`.toLowerCase().includes(search.toLowerCase()),
-                        )
-                        .map((a) => (
-                          <tr key={`${a.code}|${a.date}`}>
-                            <td>
-                              <Person name={a.name} code={a.code} />
-                            </td>
-                            <td>{a.date}</td>
-                            <td>{a.role}</td>
-                            <td>
-                              <Badge
-                                tone={
-                                  a.status === 'P'
-                                    ? 'green'
-                                    : a.status === 'Pending'
-                                      ? 'amber'
-                                      : 'gray'
-                                }
-                              >
-                                {a.status}
-                              </Badge>
-                            </td>
-                            <td>{a.payable}</td>
-                            <td>
-                              {included(a.role) ||
-                              state.employees.some((e) => e.code === a.code && e.manualPayroll)
-                                ? 'Included'
-                                : 'Excluded'}
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-                {!attendance.length && (
-                  <Empty
-                    title="No attendance for this month"
-                    text="Import the daily Attendance .xlsx report to get started."
-                    action={
-                      <button className="secondary" onClick={() => fileRef.current?.click()}>
-                        <FileUp size={16} /> Choose report
-                      </button>
-                    }
-                  />
-                )}
-              </section>
+              <AttendanceRegister
+                key={month}
+                state={state}
+                month={month}
+                busy={busy}
+                save={(next) => commit(next, 'Attendance saved. Review payroll before approval.')}
+              />
               <section className="panel history">
                 <div className="section-heading">
                   <h2>Import history</h2>

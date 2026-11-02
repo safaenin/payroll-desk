@@ -1,3 +1,4 @@
+import { correctAttendance } from '../src/attendanceEditor';
 import { markInactive, reactivateEmployee } from '../src/employment';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { readFile } from 'node:fs/promises';
@@ -109,6 +110,26 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('cloud payroll lifecycle',
     expect(state.payments).toEqual(paid);
     await expect(saveCloud(stale, stale)).rejects.toThrow('Another session');
 
+    const beforeCorrection = structuredClone(state.runs);
+    const attendanceRow = state.attendance.find((a) => a.code === 'DEMO001')!;
+    await saveCloud(
+      state,
+      correctAttendance(
+        state,
+        attendanceRow.code,
+        attendanceRow.date,
+        'A',
+        0,
+        'Verified absence',
+        attendanceRow.role,
+      ),
+    );
+    state = await loadCloud();
+    expect(
+      state.attendance.find((a) => a.code === attendanceRow.code && a.date === attendanceRow.date)
+        ?.manualCorrection?.reason,
+    ).toBe('Verified absence');
+    expect(state.runs).toEqual(beforeCorrection);
     const beforeExit = structuredClone(state);
     const inactive = markInactive(
       state.employees.find((e) => e.code === 'DEMO001')!,

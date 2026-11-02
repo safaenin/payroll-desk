@@ -31,6 +31,7 @@ export type Employee = {
   offerReceived: boolean;
 };
 export type Attendance = {
+  manualCorrection?: { reason: string; at: string };
   code: string;
   name: string;
   date: string;
@@ -367,6 +368,10 @@ export function mergeAttendance(state: State, incoming: Attendance[], name: stri
   const revisions: ImportLog['revisions'] = [];
   for (const row of incoming) {
     const old = map.get(key(row));
+    if (old?.manualCorrection && name !== 'Manual attendance') {
+      unchanged++;
+      continue;
+    }
     if (!old) added++;
     else if (JSON.stringify(old) === JSON.stringify(row)) {
       unchanged++;
