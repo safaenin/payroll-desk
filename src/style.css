@@ -2923,3 +2923,32 @@ code {
     display: none;
   }
 }
+
+.payroll-filter-fields {
+  grid-template-columns: minmax(180px, 1.2fr) minmax(170px, 1fr) minmax(170px, 250px);
+}
+.payroll-filter-scope {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: #7c8b81;
+}
+.payroll-row-role {
+  margin-top: 8px;
+  color: #718578;
+}
+@media (max-width: 900px) {
+  .payroll-filter-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+  .payroll-filter-fields .employee-search-field {
+    grid-column: auto;
+  }
+  .payroll-filter-fields .employee-role-field {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 600px) {
+  .payroll-filter-fields {
+    grid-template-columns: 1fr;
+  }
+}

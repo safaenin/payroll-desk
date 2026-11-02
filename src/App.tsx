@@ -120,6 +120,9 @@ function csvDownload(rows: (string | number)[][], name: string) {
 }
 export default function App() {
   const [voidId, setVoidId] = useState('');
+  const [payrollName, setPayrollName] = useState('');
+  const [payrollCode, setPayrollCode] = useState('');
+  const [payrollRole, setPayrollRole] = useState('');
   const [statusEmployee, setStatusEmployee] = useState<Employee | null>(null);
   const [employeeStatus, setEmployeeStatus] = useState('active');
   const [page, setPage] = useState<Page>('Overview'),
@@ -194,6 +197,16 @@ export default function App() {
   const draft = useMemo(() => calculate(state, month), [state, month]);
   const run = state.runs.find((r) => r.month === month),
     lines = run?.lines ?? draft;
+  const payrollRoles = [...new Set(lines.map((line) => line.role.trim()).filter(Boolean))].sort(
+    (a, b) => a.localeCompare(b),
+  );
+  const payrollFiltered = Boolean(payrollName || payrollCode || payrollRole);
+  const filteredPayroll = lines.filter(
+    (line) =>
+      line.name.toLowerCase().includes(payrollName.trim().toLowerCase()) &&
+      line.code.toLowerCase().includes(payrollCode.trim().toLowerCase()) &&
+      (!payrollRole || line.role.trim() === payrollRole),
+  );
   const attendance = state.attendance.filter((a) => a.date.startsWith(month));
   const eligibleRecords = attendance.filter(
     (a) => included(a.role) || state.employees.some((e) => e.code === a.code && e.manualPayroll),
@@ -1070,6 +1083,99 @@ export default function App() {
                     <ArrowDownToLine size={16} /> Export CSV
                   </button>
                 </div>
+                <div
+                  className="employee-directory-filters payroll-directory-filters"
+                  role="search"
+                  aria-label="Payroll filters"
+                >
+                  <div className="employee-filter-fields payroll-filter-fields">
+                    <label className="employee-search-field">
+                      <span>Employee name</span>
+                      <div className="employee-search-control">
+                        <Search size={17} aria-hidden="true" />
+                        <input
+                          aria-label="Filter payroll by name"
+                          placeholder="Search employee name"
+                          value={payrollName}
+                          onChange={(e) => setPayrollName(e.target.value)}
+                        />
+                        {payrollName && (
+                          <button
+                            type="button"
+                            aria-label="Clear payroll name"
+                            onClick={() => setPayrollName('')}
+                          >
+                            <X size={15} />
+                          </button>
+                        )}
+                      </div>
+                    </label>
+                    <label className="employee-search-field">
+                      <span>Employee code</span>
+                      <div className="employee-search-control">
+                        <Search size={17} aria-hidden="true" />
+                        <input
+                          aria-label="Filter payroll by employee code"
+                          placeholder="Search employee code"
+                          value={payrollCode}
+                          onChange={(e) => setPayrollCode(e.target.value)}
+                        />
+                        {payrollCode && (
+                          <button
+                            type="button"
+                            aria-label="Clear payroll employee code"
+                            onClick={() => setPayrollCode('')}
+                          >
+                            <X size={15} />
+                          </button>
+                        )}
+                      </div>
+                    </label>
+                    <label className="employee-role-field">
+                      <span>Payroll role</span>
+                      <select
+                        aria-label="Filter payroll by role"
+                        value={payrollRole}
+                        onChange={(e) => setPayrollRole(e.target.value)}
+                      >
+                        <option value="">All roles</option>
+                        {payrollRoles.map((role) => (
+                          <option key={role} value={role}>
+                            {role}
+                          </option>
+                        ))}
+                        {payrollRole && !payrollRoles.includes(payrollRole) && (
+                          <option value={payrollRole}>{payrollRole} (no entries)</option>
+                        )}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="employee-filter-summary">
+                    <p aria-live="polite">
+                      <strong>{filteredPayroll.length}</strong>
+                      {payrollFiltered ? ` of ${lines.length} employees` : ' employees'}
+                      <span>{payrollFiltered ? ' match your filters' : ' in this payroll'}</span>
+                    </p>
+                    <button
+                      type="button"
+                      className="employee-reset-filters"
+                      disabled={!payrollFiltered}
+                      onClick={() => {
+                        setPayrollName('');
+                        setPayrollCode('');
+                        setPayrollRole('');
+                      }}
+                    >
+                      <X size={14} aria-hidden="true" />
+                      Clear filters
+                    </button>
+                  </div>
+                  {payrollFiltered && (
+                    <p className="payroll-filter-scope">
+                      Totals, approval and CSV export include the full payroll.
+                    </p>
+                  )}
+                </div>
                 <div className="table-wrap">
                   <table>
                     <thead>
@@ -1085,10 +1191,11 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {lines.map((l) => (
+                      {filteredPayroll.map((l) => (
                         <tr key={l.code}>
                           <td>
                             <Person name={l.name} code={l.code} />
+                            <small className="payroll-row-role">{l.role || 'Role not set'}</small>
                             {l.issues.map((i) => (
                               <small className="issue" key={i}>
                                 {i}
@@ -1159,6 +1266,12 @@ export default function App() {
                     </tbody>
                   </table>
                 </div>
+                {!!lines.length && !filteredPayroll.length && (
+                  <Empty
+                    title="No employees match these filters"
+                    text="Try another name, employee code or role, or clear the filters."
+                  />
+                )}
                 {run && (
                   <PayrollRevision
                     key={month}
