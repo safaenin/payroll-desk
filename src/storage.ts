@@ -90,6 +90,8 @@ function groupDocuments(state: State): Record<string, unknown> {
   for (const f of state.files) docs[`files/${f.id}`] = f;
   for (const i of state.imports) docs[`imports/${i.id}`] = i;
   docs['settings/coverage'] = state.coverage;
+  if (state.attendanceBonusExclusions !== undefined)
+    docs['settings/attendanceBonus'] = { excludedRoles: state.attendanceBonusExclusions };
   return docs;
 }
 export async function loadCloud(): Promise<State> {
@@ -139,6 +141,12 @@ export async function loadCloud(): Promise<State> {
       payments: data.payments.map((d) => d.data),
       files: data.files.map((d) => d.data),
       imports: data.imports.map((d) => d.data),
+      ...(data.settings.find((d) => d.id === 'attendanceBonus')
+        ? {
+            attendanceBonusExclusions: data.settings.find((d) => d.id === 'attendanceBonus')!.data
+              .excludedRoles,
+          }
+        : {}),
       coverage: data.settings.find((d) => d.id === 'coverage')?.data ?? {},
     } as State;
   }

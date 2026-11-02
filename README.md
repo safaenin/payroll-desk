@@ -332,3 +332,7 @@ To fix an existing wage typo, open Employees → Edit → Wage history → Corre
 Owner confirmation, 2 November 2026: the latest Firestore rules including payroll revision history are published. Historical salary import is explicitly skipped. This confirmation does not represent a live revision write by the agent.
 
 The `test:rules` command also exercises production cloud save/load with a 35-employee fictional payroll, advances, payments and two revisions in an isolated emulator project. The integration test skips during ordinary `npm test` runs without the emulator.
+
+### Attendance bonus role settings
+
+Use Settings → Attendance bonus roles to add, edit or remove excluded roles, then Save bonus roles. Defaults remain Shift-Incharge, Security and Housekeeping until saved. Names match within roles, ignoring case, spacing, hyphens and FR_ prefixes. All other roles can qualify subject to employee eligibility and 26 full present days; fixed monthly pay is excluded. Removing a role exclusion does not switch on employee-specific eligibility. Settings persist in Firestore under settings/attendanceBonus using existing permissions. Changes affect draft calculations and explicit revisions, never existing approved snapshots; changed role settings invalidate promotion reviews.

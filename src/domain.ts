@@ -1,3 +1,4 @@
+import { roleEarnsBonus, DEFAULT_BONUS_EXCLUSIONS } from './bonusRoles';
 import type { WageCorrection } from './wages';
 import { salaryShares, type SalaryBrandAssignment, type SalaryBrandShare } from './brandPayroll';
 import type { Business } from './expenses';
@@ -110,6 +111,7 @@ export type ImportLog = {
   revisions: { before: Attendance; after: Attendance }[];
 };
 export type State = {
+  attendanceBonusExclusions?: string[];
   revision: number;
   business?: Business;
   employees: Employee[];
@@ -146,8 +148,7 @@ export const included = (role: string) =>
   PAYROLL_ROLE_INCLUSIONS.prefixes.some((p) => role.trim().startsWith(p)) ||
   PAYROLL_ROLE_INCLUSIONS.exactRoles.includes(role.trim());
 export const key = (r: Attendance) => `${r.code}|${r.date}`;
-export const bonusRole = (role: string) =>
-  !/shift[ _-]*incharge|security|securiity|house[ _-]*keeping/i.test(role);
+export const bonusRole = roleEarnsBonus;
 export const rateValue = (rate: Rate) =>
   rate.monthlyMinor !== undefined && rate.divisor
     ? rate.monthlyMinor / rate.divisor
@@ -174,6 +175,7 @@ export function promotionReviewKey(state: State, month: string, code: string): s
   return JSON.stringify({
     month,
     code,
+    attendanceBonusExclusions: state.attendanceBonusExclusions ?? DEFAULT_BONUS_EXCLUSIONS,
     manualPayroll: employee?.manualPayroll ?? false,
     rates: [...(employee?.rates ?? [])].sort((a, b) => a.from.localeCompare(b.from)),
     attendance: state.attendance
@@ -239,7 +241,10 @@ export function calculate(state: State, month: string): Line[] {
         if (!rate) issues.push(`Wage missing on ${row.date}`);
         else {
           base += row.payable * rateValue(rate);
-          eligible &&= rate.bonusEligible && bonusRole(rate.role) && bonusRole(row.role);
+          eligible &&=
+            rate.bonusEligible &&
+            bonusRole(rate.role, state.attendanceBonusExclusions) &&
+            bonusRole(row.role, state.attendanceBonusExclusions);
           segments.add(`${rate.from}: ${rateLabel(rate)}/day · ${rate.role}`);
         }
         if (row.status === 'Pending') issues.push('Pending attendance');
@@ -248,7 +253,9 @@ export function calculate(state: State, month: string): Line[] {
         if (!['P', 'HD', 'A', 'WO', 'F', 'L', 'A-R', 'Pending'].includes(row.status))
           issues.push(`Unmapped status ${row.status}`);
       }
-      const roleKinds = new Set(rows.map((r) => bonusRole(r.role)));
+      const roleKinds = new Set(
+        rows.map((r) => bonusRole(r.role, state.attendanceBonusExclusions)),
+      );
       const adj = state.adjustments[month]?.find((a) => a.code === code);
       if (
         fixed === undefined &&

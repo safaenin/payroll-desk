@@ -1,3 +1,4 @@
+import BonusRoleSettings from './BonusRoleSettings';
 import { correctWage } from './wages';
 import PayrollRevision from './PayrollRevision';
 import SalaryBrandEditor from './SalaryBrandEditor';
@@ -801,8 +802,18 @@ export default function App() {
                           </td>
                           <td className="numeric">{r ? rateLabel(r) : 'Not set'}</td>
                           <td>
-                            <Badge tone={r?.bonusEligible && bonusRole(r.role) ? 'green' : 'gray'}>
-                              {r?.bonusEligible && bonusRole(r.role) ? 'Eligible' : 'Not eligible'}
+                            <Badge
+                              tone={
+                                r?.bonusEligible &&
+                                bonusRole(r.role, state.attendanceBonusExclusions)
+                                  ? 'green'
+                                  : 'gray'
+                              }
+                            >
+                              {r?.bonusEligible &&
+                              bonusRole(r.role, state.attendanceBonusExclusions)
+                                ? 'Eligible'
+                                : 'Not eligible'}
                             </Badge>
                           </td>
                           <td>
@@ -1273,6 +1284,16 @@ export default function App() {
           )}
           {page === 'Settings' && (
             <div className="settings-grid">
+              <BonusRoleSettings
+                roles={state.attendanceBonusExclusions}
+                busy={busy}
+                save={(roles) =>
+                  commit(
+                    { ...state, attendanceBonusExclusions: roles },
+                    'Attendance bonus roles saved.',
+                  )
+                }
+              />
               <section className="panel">
                 <div className="section-heading">
                   <div>
@@ -1378,7 +1399,7 @@ export default function App() {
                   <dt>Half-days</dt>
                   <dd>Paid at 0.5; do not count toward bonus</dd>
                   <dt>Bonus exclusions</dt>
-                  <dd>Shift-Incharge, Security, Housekeeping, and employee-specific exceptions</dd>
+                  <dd>Configured in Attendance bonus roles, plus employee-specific exceptions</dd>
                   <dt>Performance awards</dt>
                   <dd>Variable amount for manager-selected employees</dd>
                 </dl>
@@ -1485,6 +1506,7 @@ export default function App() {
         >
           <EmployeeForm
             employee={employee}
+            bonusExclusions={state.attendanceBonusExclusions}
             brands={state.business?.brands ?? []}
             busy={busy}
             onSave={(e) =>
@@ -1901,11 +1923,13 @@ function Modal({
 }
 function EmployeeForm({
   employee,
+  bonusExclusions,
   brands,
   busy,
   onSave,
 }: {
   employee: Employee | null;
+  bonusExclusions?: string[];
   brands: Brand[];
   busy: boolean;
   onSave: (e: Employee) => void;
@@ -2001,7 +2025,7 @@ function EmployeeForm({
             </strong>
             <small>
               Effective {r.from} · Bonus{' '}
-              {r.bonusEligible && bonusRole(r.role) ? 'eligible' : 'excluded'}
+              {r.bonusEligible && bonusRole(r.role, bonusExclusions) ? 'eligible' : 'excluded'}
             </small>
           </span>
           <button
@@ -2121,15 +2145,15 @@ function EmployeeForm({
             value={role}
             onChange={(e) => {
               setRole(e.target.value);
-              setEligible(bonusRole(e.target.value));
+              setEligible(bonusRole(e.target.value, bonusExclusions));
             }}
           />
         </label>
         <label className="checkbox">
           <input
             type="checkbox"
-            checked={rateMode !== 'fixed' && eligible && bonusRole(role)}
-            disabled={rateMode === 'fixed' || !bonusRole(role)}
+            checked={rateMode !== 'fixed' && eligible && bonusRole(role, bonusExclusions)}
+            disabled={rateMode === 'fixed' || !bonusRole(role, bonusExclusions)}
             onChange={(e) => setEligible(e.target.checked)}
           />
           Eligible for attendance bonus
@@ -2171,7 +2195,7 @@ function EmployeeForm({
               from: date,
               role: role.trim(),
               dailyMinor: amount,
-              bonusEligible: rateMode !== 'fixed' && eligible && bonusRole(role),
+              bonusEligible: rateMode !== 'fixed' && eligible && bonusRole(role, bonusExclusions),
               ...(rateMode === 'fixed' ? { fixedMonthlyMinor: amount } : {}),
               ...(rateMode === 'monthly' ? { monthlyMinor: amount, divisor } : {}),
             };

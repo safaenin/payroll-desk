@@ -59,8 +59,10 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('cloud payroll lifecycle',
         { month: '2026-10', amount: 200000 },
       ],
     });
+    input.attendanceBonusExclusions = ['Shift-Incharge', 'Security', 'Housekeeping'];
     await saveCloud(empty, input);
     let state = await loadCloud();
+    expect(state.attendanceBonusExclusions).toEqual(input.attendanceBonusExclusions);
     expect(state.employees).toHaveLength(35);
     expect(state.attendance).toHaveLength(1050);
     expect(state.advances).toEqual(input.advances);
