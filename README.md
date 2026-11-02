@@ -94,8 +94,8 @@ Automated tests cover calculation, imports, advances, documents, deletion recove
 
 Remaining verification/work:
 
-- Verify deployed Firestore authorization rules, concurrent-session behavior and complete cloud workflows; local emulator tests now cover unauthorized access, workspace isolation, payment void immutability, and the employee-deletion gate. Deployed rules still need verification.
-- Historical salary-workbook migration remains incomplete and needs employee mapping, month and effective-date decisions.
+- Verify deployed Firestore authorization rules, concurrent-session behavior and complete cloud workflows; local emulator tests now cover unauthorized access, workspace isolation, payment void immutability, and the employee-deletion gate. Owner confirmed publication; the revision-history rule was inspected in Firebase Console. Live revision writes were not performed.
+- Historical salary-workbook import is excluded at the owner’s request (2 November 2026).
 - Approved earnings can now be revised with a reason, preserving all earlier versions and payments. Incorrect salary payments can be voided with a reason while preserving the original record.
 - Mixed-role attendance-bonus exclusion can now be explicitly reviewed with a reason in Payroll → Adjust. Changed attendance/wages invalidate the review.
 - Fixed monthly pay has no automatic partial-month proration. No statutory deductions or automatic bank transfers are assumed.
@@ -328,3 +328,5 @@ Publish the updated firestore.rules first. Correct dated wages, imported/manual 
 Payroll versions are stored within the monthly Firestore document; the existing 900 KB pre-save limit applies. A failed or oversized save leaves the approved cloud version unchanged.
 
 To fix an existing wage typo, open Employees → Edit → Wage history → Correct entry. The effective date stays fixed; change the amount, role, calculation or eligibility and enter a reason. Click Apply wage correction, then Save employee. Before/after values are retained in Wage correction history. Existing approved payroll amounts remain unchanged until Payroll → Review revision is approved. For a genuine promotion or future raise, continue using Add dated wage instead.
+
+Owner confirmation, 2 November 2026: the latest Firestore rules including payroll revision history are published. Historical salary import is explicitly skipped. This confirmation does not represent a live revision write by the agent.

@@ -1,6 +1,6 @@
 # Payroll app plan
 
-Status: core app implemented; final verification, historical migration and approved-record correction workflows remain incomplete.
+Status: core app implemented; core workflows and approved-record corrections implemented; remaining end-to-end verification is tracked in VERIFICATION.md. Historical import skipped by owner.
 
 ## Confirmed requirements
 
@@ -151,3 +151,7 @@ Source: `/Users/mudssirahmed/Documents/Zepto/Excel/Employees Salary.xlsx`, inspe
 ### Design implications
 
 Support employee-specific daily wages, a monthly-base/divisor rate option, fixed amounts where confirmed, distinct attendance/performance/other bonuses, itemized deductions with reasons, document completion flags, and payment tracking. Preserve multiple earning lines when explicitly approved. Preview historical salary imports separately from attendance imports, require a payroll month, resolve employee mappings, and reconcile source totals before committing them.
+
+## Owner decisions — 2 November 2026
+
+The owner confirmed publication of the latest payroll revision rules and explicitly chose to skip historical salary import. Do not import Employees Salary.xlsx or invent historical payment records. Revised payroll must retain original versions and payment records; this workflow is implemented and emulator-tested.
