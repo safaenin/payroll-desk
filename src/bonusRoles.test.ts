@@ -30,3 +30,13 @@ it('changes draft bonuses without changing approved snapshots or bypassing emplo
   restored.employees[0].rates[0].bonusEligible = false;
   expect(calculate(restored, '2026-09').find((l) => l.code === 'DEMO001')!.attendanceBonus).toBe(0);
 });
+it('matches complete role names in exact mode without merging prefixes or punctuation', () => {
+  expect(roleEarnsBonus(' FR_SECURITY ', ['FR_Security'], true)).toBe(false);
+  expect(roleEarnsBonus('FR_Security Guard', ['FR_Security'], true)).toBe(true);
+  expect(roleEarnsBonus('Security', ['FR_Security'], true)).toBe(true);
+  expect(roleEarnsBonus('FR_Shift Incharge', ['FR_Shift-Incharge'], true)).toBe(true);
+  expect(validateBonusExclusions(['Security', 'FR_Security'], true)).toHaveLength(2);
+  expect(() => validateBonusExclusions(['FR_Security', ' fr_security '], true)).toThrow(
+    'already listed',
+  );
+});

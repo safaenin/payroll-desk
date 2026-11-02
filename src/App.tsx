@@ -805,13 +805,21 @@ export default function App() {
                             <Badge
                               tone={
                                 r?.bonusEligible &&
-                                bonusRole(r.role, state.attendanceBonusExclusions)
+                                bonusRole(
+                                  r.role,
+                                  state.attendanceBonusExclusions,
+                                  state.attendanceBonusExactMatch,
+                                )
                                   ? 'green'
                                   : 'gray'
                               }
                             >
                               {r?.bonusEligible &&
-                              bonusRole(r.role, state.attendanceBonusExclusions)
+                              bonusRole(
+                                r.role,
+                                state.attendanceBonusExclusions,
+                                state.attendanceBonusExactMatch,
+                              )
                                 ? 'Eligible'
                                 : 'Not eligible'}
                             </Badge>
@@ -1286,10 +1294,15 @@ export default function App() {
             <div className="settings-grid">
               <BonusRoleSettings
                 roles={state.attendanceBonusExclusions}
+                exact={state.attendanceBonusExactMatch}
+                knownRoles={[
+                  ...state.employees.flatMap((e) => e.rates.map((r) => r.role)),
+                  ...state.attendance.map((a) => a.role),
+                ]}
                 busy={busy}
                 save={(roles) =>
                   commit(
-                    { ...state, attendanceBonusExclusions: roles },
+                    { ...state, attendanceBonusExclusions: roles, attendanceBonusExactMatch: true },
                     'Attendance bonus roles saved.',
                   )
                 }
@@ -1507,6 +1520,7 @@ export default function App() {
           <EmployeeForm
             employee={employee}
             bonusExclusions={state.attendanceBonusExclusions}
+            bonusExact={state.attendanceBonusExactMatch}
             brands={state.business?.brands ?? []}
             busy={busy}
             onSave={(e) =>
@@ -1924,12 +1938,14 @@ function Modal({
 function EmployeeForm({
   employee,
   bonusExclusions,
+  bonusExact,
   brands,
   busy,
   onSave,
 }: {
   employee: Employee | null;
   bonusExclusions?: string[];
+  bonusExact?: boolean;
   brands: Brand[];
   busy: boolean;
   onSave: (e: Employee) => void;
@@ -2025,7 +2041,9 @@ function EmployeeForm({
             </strong>
             <small>
               Effective {r.from} · Bonus{' '}
-              {r.bonusEligible && bonusRole(r.role, bonusExclusions) ? 'eligible' : 'excluded'}
+              {r.bonusEligible && bonusRole(r.role, bonusExclusions, bonusExact)
+                ? 'eligible'
+                : 'excluded'}
             </small>
           </span>
           <button
@@ -2145,15 +2163,17 @@ function EmployeeForm({
             value={role}
             onChange={(e) => {
               setRole(e.target.value);
-              setEligible(bonusRole(e.target.value, bonusExclusions));
+              setEligible(bonusRole(e.target.value, bonusExclusions, bonusExact));
             }}
           />
         </label>
         <label className="checkbox">
           <input
             type="checkbox"
-            checked={rateMode !== 'fixed' && eligible && bonusRole(role, bonusExclusions)}
-            disabled={rateMode === 'fixed' || !bonusRole(role, bonusExclusions)}
+            checked={
+              rateMode !== 'fixed' && eligible && bonusRole(role, bonusExclusions, bonusExact)
+            }
+            disabled={rateMode === 'fixed' || !bonusRole(role, bonusExclusions, bonusExact)}
             onChange={(e) => setEligible(e.target.checked)}
           />
           Eligible for attendance bonus
@@ -2195,7 +2215,8 @@ function EmployeeForm({
               from: date,
               role: role.trim(),
               dailyMinor: amount,
-              bonusEligible: rateMode !== 'fixed' && eligible && bonusRole(role, bonusExclusions),
+              bonusEligible:
+                rateMode !== 'fixed' && eligible && bonusRole(role, bonusExclusions, bonusExact),
               ...(rateMode === 'fixed' ? { fixedMonthlyMinor: amount } : {}),
               ...(rateMode === 'monthly' ? { monthlyMinor: amount, divisor } : {}),
             };

@@ -2233,3 +2233,180 @@ code {
   background: #e7eaed;
   color: #69747c;
 }
+
+.bonus-role-panel {
+  grid-column: 1 / -1;
+  overflow: hidden;
+}
+.bonus-role-panel .section-heading {
+  align-items: center;
+  gap: 20px;
+}
+.bonus-eyebrow {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  color: #667d73;
+  margin-bottom: 8px;
+}
+.bonus-rule-chip {
+  white-space: nowrap;
+  padding: 9px 13px;
+  border-radius: 20px;
+  background: #edf6f0;
+  color: #285a48;
+  font-size: 12px;
+  font-weight: 600;
+}
+.bonus-role-content {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 30px;
+  padding: 24px;
+}
+.bonus-subheading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.bonus-subheading h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.bonus-subheading > span {
+  color: #708177;
+  font-size: 12px;
+}
+.bonus-help {
+  color: #63776f;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.bonus-migration {
+  background: #fff8e9;
+  border: 1px solid #ecdbb7;
+  padding: 12px;
+  border-radius: 8px;
+  color: #725b30;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.bonus-add-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 20px 0;
+}
+.bonus-role-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+}
+.bonus-role-input input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+.bonus-exclusions {
+  max-height: 340px;
+  overflow-y: auto;
+  border-top: 1px solid #e4ebe7;
+}
+.bonus-role-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid #e4ebe7;
+}
+.bonus-role-row strong {
+  display: block;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.bonus-role-row span {
+  display: block;
+  font-size: 11px;
+  margin-top: 4px;
+  color: #7a8982;
+}
+.bonus-row-actions {
+  display: flex;
+  gap: 6px;
+}
+.bonus-row-actions button {
+  padding: 8px;
+}
+.bonus-role-preview {
+  background: #f5f8f6;
+  border: 1px solid #e5ece7;
+  border-radius: 12px;
+  padding: 20px;
+  min-width: 0;
+}
+.bonus-role-preview > input {
+  width: 100%;
+  background: white;
+}
+.bonus-preview-list {
+  max-height: 290px;
+  overflow-y: auto;
+  margin: 12px 0;
+}
+.bonus-preview-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid #e3eae5;
+  font-size: 12px;
+}
+.bonus-preview-list > div > span:first-child {
+  overflow-wrap: anywhere;
+}
+.bonus-preview-list .badge {
+  flex-shrink: 0;
+}
+.bonus-save-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 24px;
+  border-top: 1px solid #e4ebe7;
+  background: #fbfcfb;
+}
+.bonus-save-bar p {
+  margin: 0;
+  font-size: 12px;
+  color: #66786e;
+}
+.bonus-save-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.bonus-empty {
+  color: #66786e;
+  font-size: 13px;
+  padding: 20px 0;
+}
+@media (max-width: 850px) {
+  .bonus-role-content {
+    grid-template-columns: 1fr;
+  }
+  .bonus-save-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .bonus-save-actions {
+    justify-content: flex-end;
+  }
+  .bonus-rule-chip {
+    white-space: normal;
+  }
+}

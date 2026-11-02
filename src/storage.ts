@@ -91,7 +91,10 @@ function groupDocuments(state: State): Record<string, unknown> {
   for (const i of state.imports) docs[`imports/${i.id}`] = i;
   docs['settings/coverage'] = state.coverage;
   if (state.attendanceBonusExclusions !== undefined)
-    docs['settings/attendanceBonus'] = { excludedRoles: state.attendanceBonusExclusions };
+    docs['settings/attendanceBonus'] = {
+      excludedRoles: state.attendanceBonusExclusions,
+      exactMatch: state.attendanceBonusExactMatch ?? false,
+    };
   return docs;
 }
 export async function loadCloud(): Promise<State> {
@@ -143,6 +146,8 @@ export async function loadCloud(): Promise<State> {
       imports: data.imports.map((d) => d.data),
       ...(data.settings.find((d) => d.id === 'attendanceBonus')
         ? {
+            attendanceBonusExactMatch:
+              data.settings.find((d) => d.id === 'attendanceBonus')!.data.exactMatch === true,
             attendanceBonusExclusions: data.settings.find((d) => d.id === 'attendanceBonus')!.data
               .excludedRoles,
           }

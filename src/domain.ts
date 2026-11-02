@@ -112,6 +112,7 @@ export type ImportLog = {
 };
 export type State = {
   attendanceBonusExclusions?: string[];
+  attendanceBonusExactMatch?: boolean;
   revision: number;
   business?: Business;
   employees: Employee[];
@@ -175,6 +176,7 @@ export function promotionReviewKey(state: State, month: string, code: string): s
   return JSON.stringify({
     month,
     code,
+    attendanceBonusExactMatch: state.attendanceBonusExactMatch ?? false,
     attendanceBonusExclusions: state.attendanceBonusExclusions ?? DEFAULT_BONUS_EXCLUSIONS,
     manualPayroll: employee?.manualPayroll ?? false,
     rates: [...(employee?.rates ?? [])].sort((a, b) => a.from.localeCompare(b.from)),
@@ -243,8 +245,12 @@ export function calculate(state: State, month: string): Line[] {
           base += row.payable * rateValue(rate);
           eligible &&=
             rate.bonusEligible &&
-            bonusRole(rate.role, state.attendanceBonusExclusions) &&
-            bonusRole(row.role, state.attendanceBonusExclusions);
+            bonusRole(
+              rate.role,
+              state.attendanceBonusExclusions,
+              state.attendanceBonusExactMatch,
+            ) &&
+            bonusRole(row.role, state.attendanceBonusExclusions, state.attendanceBonusExactMatch);
           segments.add(`${rate.from}: ${rateLabel(rate)}/day · ${rate.role}`);
         }
         if (row.status === 'Pending') issues.push('Pending attendance');
@@ -254,7 +260,9 @@ export function calculate(state: State, month: string): Line[] {
           issues.push(`Unmapped status ${row.status}`);
       }
       const roleKinds = new Set(
-        rows.map((r) => bonusRole(r.role, state.attendanceBonusExclusions)),
+        rows.map((r) =>
+          bonusRole(r.role, state.attendanceBonusExclusions, state.attendanceBonusExactMatch),
+        ),
       );
       const adj = state.adjustments[month]?.find((a) => a.code === code);
       if (
