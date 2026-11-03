@@ -1,3 +1,4 @@
+import EmployeePicker from './EmployeePicker';
 import DocumentUploadProgress, { type UploadProgress } from './DocumentUploadProgress';
 import { useEffect, useRef, useState } from 'react';
 import { FileText } from 'lucide-react';
@@ -96,26 +97,16 @@ export default function DocumentsPanel({
           Organize existing documents into folders
         </button>
         {organization && <p role="status">{organization}</p>}
-        <label>
-          Employee
-          <select
-            aria-label="Document employee"
-            disabled={busy}
-            value={code}
-            onChange={(e) => {
-              setCode(e.target.value);
-              setDate('');
-              setNote('');
-            }}
-          >
-            <option value="">All employees — select one to upload</option>
-            {state.employees.map((e) => (
-              <option key={e.code} value={e.code}>
-                {e.name} · {e.code}
-              </option>
-            ))}
-          </select>
-        </label>
+        <EmployeePicker
+          employees={state.employees}
+          value={code}
+          disabled={busy}
+          onChange={(next) => {
+            setCode(next);
+            setDate('');
+            setNote('');
+          }}
+        />
         {employee && (
           <>
             <div className="document-checks">

@@ -3278,3 +3278,74 @@ input[type='number']::-webkit-outer-spin-button {
     animation: none;
   }
 }
+
+.employee-picker {
+  position: relative;
+  margin-top: 18px;
+}
+.employee-picker > label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.employee-picker-trigger {
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 14px;
+  border: 1px solid #dce4df;
+  border-radius: 8px;
+  background: white;
+  justify-content: space-between;
+  text-align: left;
+}
+.employee-picker-trigger > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.employee-picker strong,
+.employee-picker small {
+  display: block;
+}
+.employee-picker small {
+  color: #748079;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.employee-picker-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin-top: 6px;
+  padding: 10px;
+  background: white;
+  border: 1px solid #dce4df;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px #253d3820;
+}
+.employee-picker-options {
+  max-height: 260px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+.employee-picker-options > button {
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  justify-content: space-between;
+  border-radius: 6px;
+}
+.employee-picker-options > button:hover,
+.employee-picker-options > button.highlighted {
+  background: #edf4ef;
+}
+.employee-picker-options > button > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.employee-picker-empty {
+  padding: 12px;
+  font-size: 13px;
+}
