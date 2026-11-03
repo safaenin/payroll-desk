@@ -3195,3 +3195,14 @@ code {
     justify-self: start;
   }
 }
+
+/* Keep numeric entry keyboard-controlled, without mouse spinner buttons. */
+input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
