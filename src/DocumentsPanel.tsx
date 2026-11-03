@@ -1,3 +1,4 @@
+import DocumentUploadProgress, { type UploadProgress } from './DocumentUploadProgress';
 import { useEffect, useRef, useState } from 'react';
 import { FileText } from 'lucide-react';
 import type { State, FileRecord } from './domain';
@@ -32,6 +33,7 @@ export default function DocumentsPanel({
     [documentType, setType] = useState('aadhaar'),
     [effectiveDate, setDate] = useState(''),
     [note, setNote] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [organization, setOrganization] = useState('');
   const [pendingLink, setPendingLink] = useState<FileRecord | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FileRecord | null>(null);
@@ -71,6 +73,7 @@ export default function DocumentsPanel({
   }
   return (
     <section className="panel">
+      {uploadProgress && <DocumentUploadProgress progress={uploadProgress} />}
       <div className="section-heading">
         <div>
           <h2>Employee documents</h2>
@@ -204,8 +207,19 @@ export default function DocumentsPanel({
                 disabled={busy}
                 onClick={() =>
                   void task(async () => {
-                    await save(linkDocument(state, pendingLink), 'Employee document link saved.');
-                    setPendingLink(null);
+                    setUploadProgress({
+                      name: pendingLink.name,
+                      employee:
+                        state.employees.find((e) => e.code === pendingLink.code)?.name ??
+                        pendingLink.code,
+                      stage: 'link',
+                    });
+                    try {
+                      await save(linkDocument(state, pendingLink), 'Employee document link saved.');
+                      setPendingLink(null);
+                    } finally {
+                      setUploadProgress(null);
+                    }
                   })
                 }
               >
@@ -226,15 +240,32 @@ export default function DocumentsPanel({
           const owner = code,
             details = { documentType, effectiveDate, note: note.trim() };
           void task(async () => {
-            const record = await uploadDrive(file, owner, details, employee?.name ?? owner);
-            setPendingLink(record);
+            setUploadProgress({
+              name: file.name,
+              employee: employee?.name ?? owner,
+              stage: 'upload',
+            });
             try {
-              await save(linkDocument(state, record), 'Document uploaded and linked to employee.');
-              setPendingLink(null);
-            } catch (err) {
-              throw new Error(
-                `Uploaded to Drive, but saving its employee link failed. Use Retry saving employee link below. ${err instanceof Error ? err.message : String(err)}`,
-              );
+              const record = await uploadDrive(file, owner, details, employee?.name ?? owner);
+              setUploadProgress({
+                name: file.name,
+                employee: employee?.name ?? owner,
+                stage: 'link',
+              });
+              setPendingLink(record);
+              try {
+                await save(
+                  linkDocument(state, record),
+                  'Document uploaded and linked to employee.',
+                );
+                setPendingLink(null);
+              } catch (err) {
+                throw new Error(
+                  `Uploaded to Drive, but saving its employee link failed. Use Retry saving employee link below. ${err instanceof Error ? err.message : String(err)}`,
+                );
+              }
+            } finally {
+              setUploadProgress(null);
             }
           });
         }}
