@@ -220,7 +220,12 @@ export default function App() {
       .reduce((n, p) => n + p.amount, 0);
   const issues = lines.filter((l) => l.issues.length),
     pending = eligibleRecords.filter((a) => a.status === 'Pending').length;
-  const totalBonus = lines.reduce((n, l) => n + l.attendanceBonus + l.performance + l.other, 0);
+  const bonusTotals = {
+    attendance: lines.reduce((n, l) => n + l.attendanceBonus, 0),
+    performance: lines.reduce((n, l) => n + l.performance, 0),
+    other: lines.reduce((n, l) => n + l.other, 0),
+  };
+  const totalBonus = bonusTotals.attendance + bonusTotals.performance + bonusTotals.other;
   const balance = (code: string) =>
     (lines.find((l) => l.code === code)?.net ?? 0) -
     state.payments
@@ -618,6 +623,7 @@ export default function App() {
                   icon={<CalendarCheck size={20} />}
                 />
               </div>
+              <BonusBreakdown totals={bonusTotals} />
               <div className="overview-grid">
                 <section className="panel cycle">
                   <div className="section-heading">
@@ -1075,6 +1081,7 @@ export default function App() {
                   detail={monthLabel(month)}
                 />
               </div>
+              <BonusBreakdown totals={bonusTotals} />
               <section className="panel">
                 <div className="section-heading">
                   <div>
@@ -1195,7 +1202,8 @@ export default function App() {
                         <th>PAYABLE / FULL DAYS</th>
                         <th>BASE</th>
                         <th>ATTENDANCE BONUS</th>
-                        <th>PERFORMANCE / OTHER</th>
+                        <th>PERFORMANCE BONUS</th>
+                        <th>OTHER BONUS</th>
                         <th>DEDUCTIONS</th>
                         <th>NET SALARY</th>
                         <th>ACTIONS</th>
@@ -1224,10 +1232,8 @@ export default function App() {
                           </td>
                           <td className="numeric">{money(l.base)}</td>
                           <td className="numeric">{money(l.attendanceBonus)}</td>
-                          <td className="numeric">
-                            {money(l.performance)}
-                            <small>Other {money(l.other)}</small>
-                          </td>
+                          <td className="numeric">{money(l.performance)}</td>
+                          <td className="numeric">{money(l.other)}</td>
                           <td className="numeric">
                             {money(l.deduction)}
                             <small>Advance {money(l.advanceRecovery ?? 0)}</small>
@@ -2500,5 +2506,34 @@ function EmployeeForm({
         </div>
       )}
     </form>
+  );
+}
+
+function BonusBreakdown({
+  totals,
+}: {
+  totals: { attendance: number; performance: number; other: number };
+}) {
+  return (
+    <section className="panel bonus-breakdown" aria-label="Monthly bonus breakdown">
+      <div>
+        <h2>Bonus breakdown</h2>
+        <p>Full payroll · selected month</p>
+      </div>
+      <dl>
+        {(
+          [
+            ['Attendance bonus', totals.attendance],
+            ['Performance bonus', totals.performance],
+            ['Other bonus', totals.other],
+          ] as const
+        ).map(([label, amount]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{money(amount)}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }

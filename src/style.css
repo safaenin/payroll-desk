@@ -3349,3 +3349,69 @@ input[type='number']::-webkit-outer-spin-button {
   padding: 12px;
   font-size: 13px;
 }
+
+.bonus-breakdown {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.8fr) 3fr;
+  align-items: center;
+  gap: 24px;
+  padding: 22px 24px;
+  margin-bottom: 24px;
+}
+.bonus-breakdown h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+.bonus-breakdown p {
+  margin: 0;
+  color: #748079;
+  font-size: 12px;
+}
+.bonus-breakdown dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+.bonus-breakdown dl > div {
+  border-left: 1px solid #e4eae6;
+  padding-left: 24px;
+}
+.bonus-breakdown dt {
+  font-size: 12px;
+  color: #748079;
+  margin-bottom: 8px;
+}
+.bonus-breakdown dd {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .bonus-breakdown {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 20px;
+  }
+  .bonus-breakdown dl {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .bonus-breakdown dl > div {
+    border-left: 0;
+    padding: 12px 0 0;
+    border-top: 1px solid #e4eae6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  .bonus-breakdown dt {
+    margin: 0;
+  }
+  .bonus-breakdown dd {
+    font-size: 18px;
+  }
+}
