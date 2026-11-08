@@ -341,6 +341,9 @@ export default function App() {
       `${e.name} ${e.code}`.toLowerCase().includes(search.trim().toLowerCase()) &&
       (!employeeRole || roleKey(e) === employeeRole) &&
       (employeeStatus === 'all' || e.active === (employeeStatus === 'active')),
+  ).sort((a, b) =>
+    a.name.trim().localeCompare(b.name.trim(), 'en', { sensitivity: 'base' }) ||
+    a.code.localeCompare(b.code),
   );
   if (restoring || sessionError)
     return (
