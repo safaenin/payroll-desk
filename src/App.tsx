@@ -1212,82 +1212,107 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredPayroll.map((l) => (
-                        <tr key={l.code}>
-                          <td>
-                            <Person name={l.name} code={l.code} />
-                            <small className="payroll-row-role">{l.role || 'Role not set'}</small>
-                            <small className="payroll-bank-type">
-                              Bank:{' '}
-                              <strong>
-                                {state.employees.find((e) => e.code === l.code)?.bankType ?? 'NONE'}
-                              </strong>
-                            </small>
-                            {l.issues.map((i) => (
-                              <small className="issue" key={i}>
-                                {i}
+                      {filteredPayroll.map((l) => {
+                        const due = balance(l.code);
+                        const received = l.net - due;
+                        const paymentStatus = !run
+                          ? 'Draft'
+                          : due < 0
+                            ? 'Overpaid'
+                            : due > 0
+                              ? received > 0
+                                ? 'Partially paid'
+                                : 'Payment pending'
+                              : received > 0
+                                ? 'Paid'
+                                : 'No payment due';
+                        const paymentTone =
+                          !run || (due === 0 && received <= 0)
+                            ? 'neutral'
+                            : due === 0
+                              ? 'paid'
+                              : 'pending';
+                        return (
+                          <tr key={l.code} className={`payroll-payment-row payment-${paymentTone}`}>
+                            <td>
+                              <Person name={l.name} code={l.code} />
+                              <small className="payroll-row-role">{l.role || 'Role not set'}</small>
+                              <small className="payroll-bank-type">
+                                Bank:{' '}
+                                <strong>
+                                  {state.employees.find((e) => e.code === l.code)?.bankType ??
+                                    'NONE'}
+                                </strong>
                               </small>
-                            ))}
-                            <details>
-                              <summary>Wage details</summary>
-                              {l.segments.map((s) => (
-                                <small key={s}>{s}</small>
+                              {l.issues.map((i) => (
+                                <small className="issue" key={i}>
+                                  {i}
+                                </small>
                               ))}
-                            </details>
-                          </td>
-                          <td>
-                            {l.days} / {l.fullDays}
-                          </td>
-                          <td className="numeric">{money(l.base)}</td>
-                          <td className="numeric">{money(l.attendanceBonus)}</td>
-                          <td className="numeric">{money(l.performance)}</td>
-                          <td className="numeric">{money(l.other)}</td>
-                          <td className="numeric">
-                            {money(l.deduction)}
-                            <small>Advance {money(l.advanceRecovery ?? 0)}</small>
-                          </td>
-                          <td className="numeric strong">
-                            {money(l.net)}
-                            {run && (
-                              <small>
-                                {balance(l.code) < 0 ? 'Overpaid' : 'Due'}{' '}
-                                {money(Math.abs(balance(l.code)))}
-                              </small>
-                            )}
-                          </td>
-                          <td>
-                            <div className="row-actions">
-                              {!run ? (
-                                <button
-                                  className="text-button"
-                                  onClick={() => setAdjustCode(l.code)}
-                                >
-                                  Adjust
-                                </button>
-                              ) : (
-                                <>
+                              <details>
+                                <summary>Wage details</summary>
+                                {l.segments.map((s) => (
+                                  <small key={s}>{s}</small>
+                                ))}
+                              </details>
+                            </td>
+                            <td>
+                              {l.days} / {l.fullDays}
+                            </td>
+                            <td className="numeric">{money(l.base)}</td>
+                            <td className="numeric">{money(l.attendanceBonus)}</td>
+                            <td className="numeric">{money(l.performance)}</td>
+                            <td className="numeric">{money(l.other)}</td>
+                            <td className="numeric">
+                              {money(l.deduction)}
+                              <small>Advance {money(l.advanceRecovery ?? 0)}</small>
+                            </td>
+                            <td className="numeric strong">
+                              {money(l.net)}
+                              <span className={`payroll-payment-status payment-${paymentTone}`}>
+                                {paymentStatus}
+                              </span>
+                              {run && (
+                                <small>
+                                  {balance(l.code) < 0 ? 'Overpaid' : 'Due'}{' '}
+                                  {money(Math.abs(balance(l.code)))}
+                                </small>
+                              )}
+                            </td>
+                            <td>
+                              <div className="row-actions">
+                                {!run ? (
                                   <button
                                     className="text-button"
                                     onClick={() => setAdjustCode(l.code)}
                                   >
-                                    Edit revision inputs
+                                    Adjust
                                   </button>
-                                  <button
-                                    className="text-button"
-                                    onClick={() => setPayCode(l.code)}
-                                    disabled={balance(l.code) <= 0}
-                                  >
-                                    Record payment
-                                  </button>
-                                  <button className="text-button" onClick={() => setSlip(l)}>
-                                    Payslip
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                                ) : (
+                                  <>
+                                    <button
+                                      className="text-button"
+                                      onClick={() => setAdjustCode(l.code)}
+                                    >
+                                      Edit revision inputs
+                                    </button>
+                                    <button
+                                      className="text-button"
+                                      onClick={() => setPayCode(l.code)}
+                                      disabled={balance(l.code) <= 0}
+                                    >
+                                      Record payment
+                                    </button>
+                                    <button className="text-button" onClick={() => setSlip(l)}>
+                                      Payslip
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

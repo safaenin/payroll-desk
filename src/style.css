@@ -3466,3 +3466,39 @@ input[type='number']::-webkit-outer-spin-button {
     flex-wrap: wrap;
   }
 }
+
+.payroll-payment-row.payment-pending > td {
+  background: #fffbef;
+}
+.payroll-payment-row.payment-paid > td {
+  background: #f1f8f3;
+}
+.payroll-payment-row.payment-pending:hover > td {
+  background: #fff7e1;
+}
+.payroll-payment-row.payment-paid:hover > td {
+  background: #eaf4ed;
+}
+.payroll-payment-status {
+  display: block;
+  width: fit-content;
+  margin: 7px 0 5px auto;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.payroll-payment-status.payment-pending {
+  background: #f7edcd;
+  color: #806320;
+}
+.payroll-payment-status.payment-paid {
+  background: #dfeee3;
+  color: #38674a;
+}
+.payroll-payment-status.payment-neutral {
+  background: #edf0ee;
+  color: #64746b;
+}
