@@ -908,8 +908,17 @@ export default function App() {
                   <tbody>
                     {filteredEmployees.map((e) => {
                       const r = latestEmployeeRate(e);
+                      const documentCount = [
+                        e.aadhaar,
+                        e.bank,
+                        e.offerSent,
+                        e.offerReceived,
+                      ].filter(Boolean).length;
                       return (
-                        <tr key={e.code}>
+                        <tr
+                          key={e.code}
+                          className={`employee-document-row documents-${documentCount === 4 ? 'complete' : 'pending'}`}
+                        >
                           <td>
                             <Person
                               name={e.name}
@@ -956,11 +965,10 @@ export default function App() {
                             </Badge>
                           </td>
                           <td>
-                            {
-                              [e.aadhaar, e.bank, e.offerSent, e.offerReceived].filter(Boolean)
-                                .length
-                            }
-                            /4 complete
+                            <Badge tone={documentCount === 4 ? 'green' : 'amber'}>
+                              {documentCount === 4 ? 'Complete' : 'Pending'}
+                            </Badge>
+                            <small>{documentCount}/4 checklist items complete</small>
                           </td>
                           <td>
                             <div className="employee-directory-actions">

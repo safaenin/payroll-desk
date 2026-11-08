@@ -3467,16 +3467,20 @@ input[type='number']::-webkit-outer-spin-button {
   }
 }
 
-.payroll-payment-row.payment-pending > td {
+.payroll-payment-row.payment-pending > td,
+.employee-document-row.documents-pending > td {
   background: #fffbef;
 }
-.payroll-payment-row.payment-paid > td {
+.payroll-payment-row.payment-paid > td,
+.employee-document-row.documents-complete > td {
   background: #f1f8f3;
 }
-.payroll-payment-row.payment-pending:hover > td {
+.payroll-payment-row.payment-pending:hover > td,
+.employee-document-row.documents-pending:hover > td {
   background: #fff7e1;
 }
-.payroll-payment-row.payment-paid:hover > td {
+.payroll-payment-row.payment-paid:hover > td,
+.employee-document-row.documents-complete:hover > td {
   background: #eaf4ed;
 }
 .payroll-payment-status {
