@@ -1,3 +1,4 @@
+import BulkAttendanceEditor from './BulkAttendanceEditor';
 import { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Search, X, CalendarDays } from 'lucide-react';
 import { attendanceCalendarDays } from './ManualAttendance';
@@ -21,6 +22,8 @@ export default function AttendanceRegister({
   busy: boolean;
   save: (state: State) => Promise<unknown>;
 }) {
+  const [bulk, setBulk] = useState(false);
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [code, setCode] = useState('');
   const panelRef = useRef<HTMLElement>(null);
   const editorRef = useRef<HTMLFormElement>(null);
@@ -81,6 +84,7 @@ export default function AttendanceRegister({
     const d = new Date(`${calendarMonth}-01T12:00:00Z`);
     d.setUTCMonth(d.getUTCMonth() + delta);
     setCalendarMonth(d.toISOString().slice(0, 7));
+    setSelectedDates([]);
     setDate('');
     setSaved('');
   }
@@ -201,6 +205,8 @@ export default function AttendanceRegister({
                 disabled={locked}
                 onClick={() => {
                   setCode('');
+                  setBulk(false);
+                  setSelectedDates([]);
                   setDate('');
                 }}
               >
@@ -255,6 +261,39 @@ export default function AttendanceRegister({
                 approve a payroll revision.
               </p>
             )}
+            <div className="bulk-attendance-toolbar">
+              <div>
+                <strong>{bulk ? 'Select days to update together' : 'Update attendance'}</strong>
+                <p>
+                  {bulk
+                    ? `${selectedDates.length} days selected · One save for all changes`
+                    : 'Edit one date, or select multiple days and save once.'}
+                </p>
+              </div>
+              <div className="bulk-attendance-actions">
+                {bulk && (
+                  <button
+                    className="text-button"
+                    disabled={locked || !selectedDates.length}
+                    onClick={() => setSelectedDates([])}
+                  >
+                    Clear selection
+                  </button>
+                )}
+                <button
+                  className="secondary"
+                  disabled={locked}
+                  onClick={() => {
+                    setBulk(!bulk);
+                    setSelectedDates([]);
+                    setDate('');
+                    setSaved('');
+                  }}
+                >
+                  {bulk ? 'Cancel bulk edit' : 'Edit multiple days'}
+                </button>
+              </div>
+            </div>
             <div className="attendance-calendar-layout">
               <section
                 className="attendance-calendar"
@@ -262,7 +301,9 @@ export default function AttendanceRegister({
               >
                 <div className="attendance-calendar-heading">
                   <h3>{labelMonth(calendarMonth)}</h3>
-                  <span>Select a date to add or edit</span>
+                  <span>
+                    {bulk ? 'Tap dates to select or deselect' : 'Select a date to add or edit'}
+                  </span>
                 </div>
                 <div className="attendance-weekdays" aria-hidden="true">
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
@@ -278,8 +319,16 @@ export default function AttendanceRegister({
                           className={`attendance-date attendance-status-${row?.status ?? 'empty'}`}
                           disabled={locked || day > today}
                           aria-label={`${day}, ${row ? (attendanceLabels[row.status] ?? row.status) : 'Unrecorded'}`}
-                          aria-pressed={day === date}
-                          onClick={() => openDay(day)}
+                          aria-pressed={bulk ? selectedDates.includes(day) : day === date}
+                          onClick={() =>
+                            bulk
+                              ? setSelectedDates((dates) =>
+                                  dates.includes(day)
+                                    ? dates.filter((d) => d !== day)
+                                    : [...dates, day],
+                                )
+                              : openDay(day)
+                          }
                         >
                           <span>
                             {Number(day.slice(8))}
@@ -304,7 +353,27 @@ export default function AttendanceRegister({
                   <span>* Manual correction</span>
                 </div>
               </section>
-              {date ? (
+              {bulk ? (
+                <BulkAttendanceEditor
+                  state={state}
+                  code={code}
+                  dates={selectedDates}
+                  locked={locked}
+                  save={async (next) => {
+                    setSaving(true);
+                    try {
+                      return await save(next);
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  onSaved={() => {
+                    setSaved(`${selectedDates.length} attendance days saved together.`);
+                    setSelectedDates([]);
+                    setBulk(false);
+                  }}
+                />
+              ) : date ? (
                 <form
                   ref={editorRef}
                   className="attendance-day-editor"

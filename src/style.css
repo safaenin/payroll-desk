@@ -3426,3 +3426,43 @@ input[type='number']::-webkit-outer-spin-button {
   font-weight: 600;
   color: #34564a;
 }
+
+.bulk-attendance-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #e3eae5;
+}
+.bulk-attendance-toolbar strong {
+  font-size: 14px;
+}
+.bulk-attendance-toolbar p {
+  margin: 5px 0 0;
+  color: #748079;
+  font-size: 13px;
+}
+.bulk-attendance-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.bulk-attendance-dates {
+  padding: 12px;
+  background: #edf4ef;
+  border-radius: 8px;
+  line-height: 1.6;
+}
+@media (max-width: 700px) {
+  .bulk-attendance-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .bulk-attendance-actions {
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+}

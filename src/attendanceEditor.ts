@@ -77,3 +77,36 @@ export function correctAttendance(
     `${release ? 'Allow future imports' : 'Attendance correction'} · ${code} · ${date} · ${reason.trim()}`;
   return next;
 }
+
+/** Validate every date before producing one audited attendance update. */
+export function correctAttendanceDays(
+  state: State,
+  code: string,
+  dates: string[],
+  status: string,
+  payable: number,
+  reason: string,
+): State {
+  const unique = [...new Set(dates)].sort();
+  if (!unique.length) throw new Error('Select at least one date.');
+  if (new Set(unique.map((d) => d.slice(0, 7))).size !== 1)
+    throw new Error('Select dates within one month.');
+  const employee = state.employees.find((e) => e.code === code);
+  const corrected = unique.map((date) => {
+    const old = state.attendance.find((r) => r.code === code && r.date === date);
+    const role =
+      old?.role ??
+      [...(employee?.rates ?? [])]
+        .sort((a, b) => b.from.localeCompare(a.from))
+        .find((r) => r.from <= date)?.role ??
+      '';
+    if (!role) throw new Error(`Set a dated role for ${date} before editing it in bulk.`);
+    return correctAttendance(state, code, date, status, payable, reason, role).attendance.find(
+      (r) => r.code === code && r.date === date,
+    )!;
+  });
+  const next = mergeAttendance(state, corrected, 'Manual attendance');
+  next.imports[next.imports.length - 1].name =
+    `Bulk attendance correction · ${code} · ${unique.length} days · ${reason.trim()}`;
+  return next;
+}

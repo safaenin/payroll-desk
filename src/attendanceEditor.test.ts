@@ -82,3 +82,33 @@ it('adds only the requested date for manual staff and validates date, status, re
     correctAttendance(state, 'DEMO001', '2026-09-01', 'P', 2, 'Reason', 'FR_Packer'),
   ).toThrow('between');
 });
+
+it('saves seven corrections in one audit entry and rejects an invalid batch without changing records', async () => {
+  const { correctAttendanceDays } = await import('./attendanceEditor');
+  const state = approve(sampleState(), '2026-09');
+  const original = structuredClone(state);
+  const dates = Array.from({ length: 7 }, (_, i) => `2026-09-0${i + 1}`);
+  const next = correctAttendanceDays(state, 'DEMO001', dates, 'HD', 0.5, 'Manager verified');
+  expect(next.imports).toHaveLength(state.imports.length + 1);
+  expect(next.imports.at(-1)?.revisions).toHaveLength(7);
+  expect(
+    next.attendance
+      .filter((r) => r.code === 'DEMO001' && dates.includes(r.date))
+      .every(
+        (r) =>
+          r.status === 'HD' &&
+          r.payable === 0.5 &&
+          r.manualCorrection?.reason === 'Manager verified',
+      ),
+  ).toBe(true);
+  expect(next.runs).toEqual(state.runs);
+  expect(next.coverage['2026-09']).toBe(false);
+  expect(() =>
+    correctAttendanceDays(state, 'DEMO001', [...dates, '2026-09-99'], 'P', 1, 'Reason'),
+  ).toThrow();
+  expect(state).toEqual(original);
+  expect(
+    correctAttendanceDays(state, 'DEMO001', [dates[0], dates[0]], 'A', 0, 'Reason').imports.at(-1)
+      ?.revisions,
+  ).toHaveLength(1);
+});
