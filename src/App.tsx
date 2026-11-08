@@ -292,6 +292,7 @@ export default function App() {
           'Firm',
           'Employee code',
           'Name',
+          'Bank type',
           'Month',
           'Payable days',
           'Full present days',
@@ -309,6 +310,7 @@ export default function App() {
           COMPANY.name,
           l.code,
           l.name,
+          state.employees.find((e) => e.code === l.code)?.bankType ?? 'NONE',
           month,
           l.days,
           l.fullDays,
@@ -1215,6 +1217,12 @@ export default function App() {
                           <td>
                             <Person name={l.name} code={l.code} />
                             <small className="payroll-row-role">{l.role || 'Role not set'}</small>
+                            <small className="payroll-bank-type">
+                              Bank:{' '}
+                              <strong>
+                                {state.employees.find((e) => e.code === l.code)?.bankType ?? 'NONE'}
+                              </strong>
+                            </small>
                             {l.issues.map((i) => (
                               <small className="issue" key={i}>
                                 {i}
@@ -2185,6 +2193,8 @@ function EmployeeForm({
       manualPayroll: f.get('manualPayroll') === 'on',
       aadhaar: f.get('aadhaar') === 'on',
       bank: f.get('bank') === 'on',
+      bankType:
+        f.get('bankType') === 'SBI' ? 'SBI' : f.get('bankType') === 'OTHER' ? 'OTHER' : 'NONE',
       offerSent: f.get('offerSent') === 'on',
       offerReceived: f.get('offerReceived') === 'on',
       rates,
@@ -2210,6 +2220,14 @@ function EmployeeForm({
         <label>
           Full name
           <input name="name" required defaultValue={employee?.name} />
+        </label>
+        <label>
+          Bank type (optional)
+          <select name="bankType" defaultValue={employee?.bankType ?? 'NONE'}>
+            <option value="NONE">NONE</option>
+            <option value="SBI">SBI</option>
+            <option value="OTHER">OTHER</option>
+          </select>
         </label>
       </div>
       {employee && (

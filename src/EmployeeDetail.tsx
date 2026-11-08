@@ -72,6 +72,7 @@ export default function EmployeeDetail({ employee, state }: { employee: Employee
           {[
             ['Full name', employee.name],
             ['Employee code', employee.code],
+            ['Bank type', employee.bankType ?? 'NONE'],
             ['Current role', rate?.role],
             ['Current wage', rate ? rateLabel(rate) : ''],
             [

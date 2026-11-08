@@ -3415,3 +3415,14 @@ input[type='number']::-webkit-outer-spin-button {
     font-size: 18px;
   }
 }
+
+.payroll-bank-type {
+  color: #6c7b73;
+  margin-top: 5px;
+}
+.payroll-bank-type strong {
+  display: inline;
+  font-size: inherit;
+  font-weight: 600;
+  color: #34564a;
+}

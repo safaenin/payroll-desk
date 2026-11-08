@@ -18,6 +18,7 @@ export type Rate = {
   divisor?: number;
 };
 export type Employee = {
+  bankType?: 'SBI' | 'OTHER' | 'NONE';
   exits?: EmployeeExit[];
   wageCorrections?: WageCorrection[];
   brandHistory?: SalaryBrandAssignment[];
