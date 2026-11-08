@@ -3506,3 +3506,56 @@ input[type='number']::-webkit-outer-spin-button {
   background: #edf0ee;
   color: #64746b;
 }
+
+.payroll-bank-chip {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #53695f;
+  padding: 5px 8px;
+  border: 1px solid #dfe6e0;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.payroll-status-cell .payroll-payment-status {
+  margin-left: 0;
+}
+.payroll-compact-actions {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.payroll-detail-view > .person {
+  margin-top: 12px;
+}
+.payroll-detail-view dl {
+  margin: 20px 0;
+}
+.payroll-detail-view dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e6ebe7;
+}
+.payroll-detail-view dt {
+  color: #718077;
+}
+.payroll-detail-view dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.payroll-detail-view dl > div:last-child {
+  font-size: 17px;
+}
+.payroll-detail-view > button {
+  margin-top: 20px;
+}
+.payroll-compact-actions {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px 14px;
+}
+.payroll-compact-actions .text-button {
+  padding: 6px 0;
+}

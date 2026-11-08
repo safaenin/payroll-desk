@@ -143,6 +143,7 @@ export default function App() {
     [adjustCode, setAdjustCode] = useState(''),
     [payCode, setPayCode] = useState(''),
     [slip, setSlip] = useState<Line | null>(null);
+  const [payrollDetailCode, setPayrollDetailCode] = useState('');
   const [detailCode, setDetailCode] = useState('');
   const [preview, setPreview] = useState<{ rows: Attendance[]; name: string } | null>(null),
     [driveReady, setDriveReady] = useState(false);
@@ -1209,13 +1210,9 @@ export default function App() {
                     <thead>
                       <tr>
                         <th>EMPLOYEE</th>
-                        <th>PAYABLE / FULL DAYS</th>
-                        <th>BASE</th>
-                        <th>ATTENDANCE BONUS</th>
-                        <th>PERFORMANCE BONUS</th>
-                        <th>OTHER BONUS</th>
-                        <th>DEDUCTIONS</th>
+                        <th>BANK</th>
                         <th>NET SALARY</th>
+                        <th>PAYMENT STATUS</th>
                         <th>ACTIONS</th>
                       </tr>
                     </thead>
@@ -1245,38 +1242,22 @@ export default function App() {
                             <td>
                               <Person name={l.name} code={l.code} />
                               <small className="payroll-row-role">{l.role || 'Role not set'}</small>
-                              <small className="payroll-bank-type">
-                                Bank:{' '}
-                                <strong>
-                                  {state.employees.find((e) => e.code === l.code)?.bankType ??
-                                    'NONE'}
-                                </strong>
-                              </small>
                               {l.issues.map((i) => (
                                 <small className="issue" key={i}>
                                   {i}
                                 </small>
                               ))}
-                              <details>
-                                <summary>Wage details</summary>
-                                {l.segments.map((s) => (
-                                  <small key={s}>{s}</small>
-                                ))}
-                              </details>
                             </td>
                             <td>
-                              {l.days} / {l.fullDays}
-                            </td>
-                            <td className="numeric">{money(l.base)}</td>
-                            <td className="numeric">{money(l.attendanceBonus)}</td>
-                            <td className="numeric">{money(l.performance)}</td>
-                            <td className="numeric">{money(l.other)}</td>
-                            <td className="numeric">
-                              {money(l.deduction)}
-                              <small>Advance {money(l.advanceRecovery ?? 0)}</small>
+                              <span className="payroll-bank-chip">
+                                {state.employees.find((e) => e.code === l.code)?.bankType ?? 'NONE'}
+                              </span>
                             </td>
                             <td className="numeric strong">
                               {money(l.net)}
+                              <small>{l.days} payable days</small>
+                            </td>
+                            <td className="payroll-status-cell">
                               <span className={`payroll-payment-status payment-${paymentTone}`}>
                                 {paymentStatus}
                               </span>
@@ -1288,7 +1269,13 @@ export default function App() {
                               )}
                             </td>
                             <td>
-                              <div className="row-actions">
+                              <div className="row-actions payroll-compact-actions">
+                                <button
+                                  className="text-button"
+                                  onClick={() => setPayrollDetailCode(l.code)}
+                                >
+                                  Details
+                                </button>
                                 {!run ? (
                                   <button
                                     className="text-button"
@@ -1298,12 +1285,6 @@ export default function App() {
                                   </button>
                                 ) : (
                                   <>
-                                    <button
-                                      className="text-button"
-                                      onClick={() => setAdjustCode(l.code)}
-                                    >
-                                      Edit revision inputs
-                                    </button>
                                     <button
                                       className="text-button"
                                       onClick={() => setPayCode(l.code)}
@@ -1720,6 +1701,54 @@ export default function App() {
               Delete employee and all records
             </button>
           </form>
+        </Modal>
+      )}
+      {payrollDetailCode && lines.find((l) => l.code === payrollDetailCode) && (
+        <Modal title="Salary breakdown" onClose={() => setPayrollDetailCode('')}>
+          {(() => {
+            const line = lines.find((l) => l.code === payrollDetailCode)!;
+            return (
+              <div className="payroll-detail-view">
+                <Person name={line.name} code={line.code} />
+                <p>
+                  {monthLabel(month)} · {line.role}
+                </p>
+                <dl>
+                  {[
+                    ['Payable days', String(line.days)],
+                    ['Full present days', String(line.fullDays)],
+                    ['Base pay', money(line.base)],
+                    ['Attendance bonus', money(line.attendanceBonus)],
+                    ['Performance bonus', money(line.performance)],
+                    ['Other bonus', money(line.other)],
+                    ['Deductions', money(line.deduction)],
+                    ['Advance recovery', money(line.advanceRecovery ?? 0)],
+                    ['Net salary', money(line.net)],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <details>
+                  <summary>Wage calculation details</summary>
+                  {line.segments.map((segment, i) => (
+                    <p key={i}>{segment}</p>
+                  ))}
+                </details>
+                <button
+                  className="secondary"
+                  onClick={() => {
+                    setAdjustCode(line.code);
+                    setPayrollDetailCode('');
+                  }}
+                >
+                  {run ? 'Edit revision inputs' : 'Adjust bonuses & deductions'}
+                </button>
+              </div>
+            );
+          })()}
         </Modal>
       )}
       {detailCode && state.employees.find((e) => e.code === detailCode) && (
