@@ -2925,7 +2925,7 @@ code {
 }
 
 .payroll-filter-fields {
-  grid-template-columns: minmax(180px, 1.2fr) minmax(170px, 1fr) minmax(170px, 250px);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .payroll-filter-scope {
   margin: 6px 0 0;
@@ -2936,7 +2936,7 @@ code {
   margin-top: 8px;
   color: #718578;
 }
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
   .payroll-filter-fields {
     grid-template-columns: 1fr 1fr;
   }
@@ -2944,7 +2944,7 @@ code {
     grid-column: auto;
   }
   .payroll-filter-fields .employee-role-field {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 }
 @media (max-width: 600px) {

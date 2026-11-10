@@ -125,6 +125,7 @@ export default function App() {
   const [payrollName, setPayrollName] = useState('');
   const [payrollCode, setPayrollCode] = useState('');
   const [payrollRole, setPayrollRole] = useState('');
+  const [payrollPaymentStatus, setPayrollPaymentStatus] = useState('');
   const [statusEmployee, setStatusEmployee] = useState<Employee | null>(null);
   const [employeeStatus, setEmployeeStatus] = useState('active');
   const [page, setPage] = useState<Page>('Overview'),
@@ -204,13 +205,6 @@ export default function App() {
   const payrollRoles = [...new Set(lines.map((line) => line.role.trim()).filter(Boolean))].sort(
     (a, b) => a.localeCompare(b),
   );
-  const payrollFiltered = Boolean(payrollName || payrollCode || payrollRole);
-  const filteredPayroll = lines.filter(
-    (line) =>
-      line.name.toLowerCase().includes(payrollName.trim().toLowerCase()) &&
-      line.code.toLowerCase().includes(payrollCode.trim().toLowerCase()) &&
-      (!payrollRole || line.role.trim() === payrollRole),
-  );
   const attendance = state.attendance.filter((a) => a.date.startsWith(month));
   const eligibleRecords = attendance.filter(
     (a) => included(a.role) || state.employees.some((e) => e.code === a.code && e.manualPayroll),
@@ -232,6 +226,22 @@ export default function App() {
     state.payments
       .filter((p) => !p.voidedAt && p.code === code && p.month === month)
       .reduce((n, p) => n + p.amount, 0);
+  const paymentStatusFor = (line: (typeof lines)[number]) => {
+    const due = balance(line.code);
+    const received = line.net - due;
+    if (!run) return 'Draft';
+    if (due < 0) return 'Overpaid';
+    if (due > 0) return received > 0 ? 'Partially paid' : 'Payment pending';
+    return received > 0 ? 'Paid' : 'No payment due';
+  };
+  const payrollFiltered = Boolean(payrollName || payrollCode || payrollRole || payrollPaymentStatus);
+  const filteredPayroll = lines.filter(
+    (line) =>
+      line.name.toLowerCase().includes(payrollName.trim().toLowerCase()) &&
+      line.code.toLowerCase().includes(payrollCode.trim().toLowerCase()) &&
+      (!payrollRole || line.role.trim() === payrollRole) &&
+      (!payrollPaymentStatus || paymentStatusFor(line) === payrollPaymentStatus),
+  );
   async function task(fn: () => Promise<unknown>) {
     setError('');
     setNotice('');
@@ -1181,6 +1191,19 @@ export default function App() {
                         )}
                       </select>
                     </label>
+                    <label className="employee-role-field">
+                      <span>Payment status</span>
+                      <select
+                        aria-label="Filter payroll by payment status"
+                        value={payrollPaymentStatus}
+                        onChange={(e) => setPayrollPaymentStatus(e.target.value)}
+                      >
+                        <option value="">All payment statuses</option>
+                        {['Payment pending', 'Partially paid', 'Paid', 'Overpaid', 'No payment due', 'Draft'].map((status) => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
                   <div className="employee-filter-summary">
                     <p aria-live="polite">
@@ -1196,6 +1219,7 @@ export default function App() {
                         setPayrollName('');
                         setPayrollCode('');
                         setPayrollRole('');
+                        setPayrollPaymentStatus('');
                       }}
                     >
                       <X size={14} aria-hidden="true" />
@@ -1223,17 +1247,7 @@ export default function App() {
                       {filteredPayroll.map((l) => {
                         const due = balance(l.code);
                         const received = l.net - due;
-                        const paymentStatus = !run
-                          ? 'Draft'
-                          : due < 0
-                            ? 'Overpaid'
-                            : due > 0
-                              ? received > 0
-                                ? 'Partially paid'
-                                : 'Payment pending'
-                              : received > 0
-                                ? 'Paid'
-                                : 'No payment due';
+                        const paymentStatus = paymentStatusFor(l);
                         const paymentTone =
                           !run || (due === 0 && received <= 0)
                             ? 'neutral'
